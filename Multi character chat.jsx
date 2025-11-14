@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { AlertCircle, Trash2, Edit2, RotateCcw, Send, Plus, Eye, EyeOff, Settings, Menu, X, Hash, RefreshCw, Save, HardDrive, User, Heart, Download, Upload, ChevronDown, ChevronRight, Layers, Copy, MessageSquare, Check, Users, BookOpen, FileText } from 'lucide-react';
+import { AlertCircle, Trash2, Edit2, RotateCcw, Send, Plus, Eye, EyeOff, Settings, Menu, X, Hash, RefreshCw, Save, HardDrive, User, Heart, Download, Upload, ChevronDown, ChevronRight, Layers, Copy, MessageSquare, Check, Users, BookOpen, FileText, Image } from 'lucide-react';
 
 const MultiCharacterChat = () => {
   // Initialization state
@@ -122,6 +122,8 @@ const MultiCharacterChat = () => {
   const getDefaultCharacter = () => ({
     id: generateId(),
     name: '新しいキャラクター',
+    baseCharacterId: null, // For derived characters
+    overrides: {}, // Which properties are overridden from base
     definition: {
       personality: 'フレンドリーで親切',
       speakingStyle: '丁寧な口調',
@@ -137,7 +139,9 @@ const MultiCharacterChat = () => {
       autoManageAffection: true,
       currentEmotion: 'neutral',
       affectionLevel: 50,
-      avatar: '😊'
+      avatar: '😊',
+      avatarType: 'emoji', // 'emoji' or 'image'
+      avatarImage: null // base64 encoded image data
     },
     created: new Date().toISOString(),
     updated: new Date().toISOString()
@@ -149,6 +153,7 @@ const MultiCharacterChat = () => {
     participantIds: [], // Array of character IDs
     backgroundInfo: '', // Situation, relationships, etc.
     narrationEnabled: true,
+    autoGenerateNarration: false, // AI automatically generates narration
     messages: [],
     created: new Date().toISOString(),
     updated: new Date().toISOString()
@@ -165,6 +170,50 @@ const MultiCharacterChat = () => {
 
   const getCharacterById = (id) => {
     return characters.find(c => c.id === id);
+  };
+
+  // Get effective character with base properties merged
+  const getEffectiveCharacter = (character) => {
+    if (!character) return null;
+
+    // If no base, return as-is
+    if (!character.baseCharacterId) {
+      return character;
+    }
+
+    // Get base character
+    const baseChar = getCharacterById(character.baseCharacterId);
+    if (!baseChar) {
+      // Base not found, return as-is
+      return character;
+    }
+
+    // Get effective base (recursive for multi-level inheritance)
+    const effectiveBase = getEffectiveCharacter(baseChar);
+
+    // Merge properties
+    const merged = {
+      ...character,
+      definition: {
+        personality: character.overrides.personality ? character.definition.personality : effectiveBase.definition.personality,
+        speakingStyle: character.overrides.speakingStyle ? character.definition.speakingStyle : effectiveBase.definition.speakingStyle,
+        firstPerson: character.overrides.firstPerson ? character.definition.firstPerson : effectiveBase.definition.firstPerson,
+        secondPerson: character.overrides.secondPerson ? character.definition.secondPerson : effectiveBase.definition.secondPerson,
+        background: character.overrides.background ? character.definition.background : effectiveBase.definition.background,
+        catchphrases: character.overrides.catchphrases ? character.definition.catchphrases : effectiveBase.definition.catchphrases
+      },
+      features: {
+        emotionEnabled: character.overrides.emotionEnabled !== undefined ? character.features.emotionEnabled : effectiveBase.features.emotionEnabled,
+        affectionEnabled: character.overrides.affectionEnabled !== undefined ? character.features.affectionEnabled : effectiveBase.features.affectionEnabled,
+        autoManageEmotion: character.overrides.autoManageEmotion !== undefined ? character.features.autoManageEmotion : effectiveBase.features.autoManageEmotion,
+        autoManageAffection: character.overrides.autoManageAffection !== undefined ? character.features.autoManageAffection : effectiveBase.features.autoManageAffection,
+        currentEmotion: character.overrides.currentEmotion ? character.features.currentEmotion : effectiveBase.features.currentEmotion,
+        affectionLevel: character.overrides.affectionLevel !== undefined ? character.features.affectionLevel : effectiveBase.features.affectionLevel,
+        avatar: character.overrides.avatar ? character.features.avatar : effectiveBase.features.avatar
+      }
+    };
+
+    return merged;
   };
 
   const parseMultiCharacterResponse = (responseText, conversation, thinkingContent) => {
@@ -321,6 +370,7 @@ const MultiCharacterChat = () => {
 
     const participants = conversation.participantIds
       .map(id => getCharacterById(id))
+      .map(c => getEffectiveCharacter(c)) // Apply inheritance
       .filter(c => c);
 
     if (participants.length === 0) return '';
@@ -387,7 +437,15 @@ const MultiCharacterChat = () => {
     
     if (conversation.narrationEnabled) {
       const narrationNum = hasAutoEmotion && hasAutoAffection ? 7 : hasAutoEmotion || hasAutoAffection ? 6 : 5;
-      prompt += `${narrationNum}. 必要に応じて [NARRATION] タグで地の文(情景描写、行動描写)を追加できます\n`;
+      if (conversation.autoGenerateNarration) {
+        prompt += `${narrationNum}. **地の文を自動生成**: 会話の合間に [NARRATION] タグで地の文を積極的に挿入してください\n`;
+        prompt += `   - 情景描写: 周囲の環境、天気、雰囲気など\n`;
+        prompt += `   - 行動描写: キャラクターの動作、表情、仕草など\n`;
+        prompt += `   - 心理描写: キャラクターの内面、思考など\n`;
+        prompt += `   - 複数のキャラクター発言の合間に自然に挿入してください\n`;
+      } else {
+        prompt += `${narrationNum}. 必要に応じて [NARRATION] タグで地の文(情景描写、行動描写)を追加できます\n`;
+      }
     }
 
     prompt += `\n例:\n`;
@@ -869,6 +927,8 @@ const MultiCharacterChat = () => {
             const features = char.features || {};
             return {
               ...char,
+              baseCharacterId: char.baseCharacterId || null,
+              overrides: char.overrides || {},
               features: {
                 emotionEnabled: features.emotionEnabled !== undefined ? features.emotionEnabled : true,
                 affectionEnabled: features.affectionEnabled !== undefined ? features.affectionEnabled : false,
@@ -876,7 +936,9 @@ const MultiCharacterChat = () => {
                 autoManageAffection: features.autoManageAffection !== undefined ? features.autoManageAffection : true,
                 currentEmotion: features.currentEmotion || 'neutral',
                 affectionLevel: features.affectionLevel !== undefined ? features.affectionLevel : 50,
-                avatar: features.avatar || '😊'
+                avatar: features.avatar || '😊',
+                avatarType: features.avatarType || 'emoji',
+                avatarImage: features.avatarImage || null
               }
             };
           });
@@ -888,6 +950,7 @@ const MultiCharacterChat = () => {
           const migratedConversations = data.conversations.map(conv => ({
             ...conv,
             narrationEnabled: conv.narrationEnabled !== undefined ? conv.narrationEnabled : true,
+            autoGenerateNarration: conv.autoGenerateNarration || false,
             backgroundInfo: conv.backgroundInfo || ''
           }));
           setConversations(migratedConversations);
@@ -1338,7 +1401,7 @@ const MultiCharacterChat = () => {
                           <><FileText size={12} /> #{idx + 1} 地の文</>
                         ) : (
                           <>
-                            {char?.features.avatar && <span>{char.features.avatar}</span>}
+                            {char && <AvatarDisplay character={char} size="sm" />}
                             #{idx + 1} {char?.name || '不明'}
                           </>
                         )}
@@ -1466,11 +1529,13 @@ const MultiCharacterChat = () => {
                 <option value="">自動</option>
                 {currentConversation.participantIds.map(charId => {
                   const char = getCharacterById(charId);
-                  return char ? (
+                  if (!char) return null;
+                  const avatar = char.features.avatarType === 'emoji' ? char.features.avatar : '📷';
+                  return (
                     <option key={charId} value={charId}>
-                      {char.features.avatar} {char.name}
+                      {avatar} {char.name}
                     </option>
-                  ) : null;
+                  );
                 })}
               </select>
             </div>
@@ -1609,9 +1674,7 @@ const MessageBubble = ({
               </>
             ) : (
               <>
-                {character?.features.avatar && (
-                  <span className="text-2xl">{character.features.avatar}</span>
-                )}
+                <AvatarDisplay character={character} size="sm" />
                 <span className="font-semibold text-sm text-indigo-600">
                   {character?.name || '不明なキャラクター'}
                 </span>
@@ -1741,6 +1804,7 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
   const [localTitle, setLocalTitle] = useState(conversation.title);
   const [localBackground, setLocalBackground] = useState(conversation.backgroundInfo);
   const [localNarration, setLocalNarration] = useState(conversation.narrationEnabled);
+  const [localAutoNarration, setLocalAutoNarration] = useState(conversation.autoGenerateNarration || false);
   const [localParticipants, setLocalParticipants] = useState(conversation.participantIds);
 
   const toggleParticipant = (charId) => {
@@ -1756,6 +1820,7 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
       title: localTitle,
       backgroundInfo: localBackground,
       narrationEnabled: localNarration,
+      autoGenerateNarration: localAutoNarration,
       participantIds: localParticipants
     });
     onClose();
@@ -1793,7 +1858,7 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
         />
       </div>
 
-      <div>
+      <div className="space-y-2">
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -1803,9 +1868,26 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
           />
           <span className="text-sm font-medium text-gray-700">地の文を有効化</span>
         </label>
-        <p className="text-xs text-gray-500 mt-1 ml-6">
+        <p className="text-xs text-gray-500 ml-6">
           情景描写や行動描写などのナレーションを追加できます
         </p>
+
+        {localNarration && (
+          <div className="ml-6 mt-2 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={localAutoNarration}
+                onChange={(e) => setLocalAutoNarration(e.target.checked)}
+                className="w-4 h-4"
+              />
+              <span className="text-sm font-medium text-purple-700">AIが自動で地の文を生成</span>
+            </label>
+            <p className="text-xs text-purple-600 mt-1 ml-6">
+              会話の合間に自動的に情景描写や行動描写を挿入します
+            </p>
+          </div>
+        )}
       </div>
 
       <div>
@@ -1827,7 +1909,7 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
                   onChange={() => toggleParticipant(char.id)}
                   className="w-4 h-4"
                 />
-                <span className="text-xl">{char.features.avatar}</span>
+                <AvatarDisplay character={char} size="sm" />
                 <div className="flex-1">
                   <div className="font-medium text-sm">{char.name}</div>
                   <div className="text-xs text-gray-500">{char.definition.personality}</div>
@@ -1860,16 +1942,48 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
 const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, exportCharacter, importCharacter, characterFileInputRef, onClose }) => {
   const [editingChar, setEditingChar] = useState(null);
   const [isNew, setIsNew] = useState(false);
+  const [isDerived, setIsDerived] = useState(false);
+  const avatarImageInputRef = useRef(null);
 
   const handleCreate = () => {
     const newChar = getDefaultCharacter();
     setEditingChar(newChar);
     setIsNew(true);
+    setIsDerived(false);
+  };
+
+  const handleCreateDerived = (baseChar) => {
+    const newChar = {
+      ...getDefaultCharacter(),
+      name: `${baseChar.name}（派生）`,
+      baseCharacterId: baseChar.id,
+      overrides: {} // Start with no overrides
+    };
+    setEditingChar(newChar);
+    setIsNew(true);
+    setIsDerived(true);
   };
 
   const handleEdit = (char) => {
     setEditingChar(JSON.parse(JSON.stringify(char)));
     setIsNew(false);
+    setIsDerived(!!char.baseCharacterId);
+  };
+
+  const toggleOverride = (field) => {
+    if (!editingChar) return;
+
+    const newOverrides = { ...editingChar.overrides };
+    if (newOverrides[field]) {
+      delete newOverrides[field];
+    } else {
+      newOverrides[field] = true;
+    }
+
+    setEditingChar({
+      ...editingChar,
+      overrides: newOverrides
+    });
   };
 
   const handleSave = () => {
@@ -1880,10 +1994,52 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
     }
     setEditingChar(null);
     setIsNew(false);
+    setIsDerived(false);
   };
 
   const handleDelete = (charId) => {
+    // Check if any character derives from this one
+    const hasDerived = characters.some(c => c.baseCharacterId === charId);
+    if (hasDerived && !confirm('このキャラクターから派生したキャラクターが存在します。削除すると派生キャラクターも影響を受けます。続けますか？')) {
+      return;
+    }
     setCharacters(prev => prev.filter(c => c.id !== charId));
+  };
+
+  const getBaseCharacter = (charId) => {
+    return characters.find(c => c.id === charId);
+  };
+
+  const handleAvatarImageUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('画像ファイルを選択してください');
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert('ファイルサイズは2MB以下にしてください');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64Image = e.target.result;
+      setEditingChar({
+        ...editingChar,
+        features: {
+          ...editingChar.features,
+          avatarType: 'image',
+          avatarImage: base64Image
+        }
+      });
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
   };
 
   return (
@@ -1909,22 +2065,68 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
         <div className="p-4 space-y-4">
           {editingChar ? (
             <div className="space-y-3">
-              <h3 className="font-bold text-lg">
-                {isNew ? '新規キャラクター' : 'キャラクター編集'}
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                {isNew ? (isDerived ? '派生キャラクター作成' : '新規キャラクター') : 'キャラクター編集'}
+                {isDerived && (
+                  <span className="text-sm bg-purple-100 text-purple-700 px-2 py-1 rounded flex items-center gap-1">
+                    <Layers size={14} />
+                    派生
+                  </span>
+                )}
               </h3>
-              
+
+              {isDerived && editingChar.baseCharacterId && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-sm text-purple-800">
+                    <Layers size={14} />
+                    <span className="font-semibold">派生元:</span>
+                    <span>{getBaseCharacter(editingChar.baseCharacterId)?.name || '不明'}</span>
+                  </div>
+                  <p className="text-xs text-purple-600 mt-1">
+                    チェックを入れた項目のみカスタマイズできます。未チェックは派生元の値を継承します。
+                  </p>
+                </div>
+              )}
+
               <div>
-                <label className="block text-sm font-medium mb-1">名前 *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium">名前 *</label>
+                  {isDerived && (
+                    <label className="flex items-center gap-1 text-xs text-purple-600">
+                      <input
+                        type="checkbox"
+                        checked={editingChar.overrides.name}
+                        onChange={() => toggleOverride('name')}
+                        className="w-3 h-3"
+                      />
+                      カスタマイズ
+                    </label>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={editingChar.name}
                   onChange={(e) => setEditingChar({...editingChar, name: e.target.value})}
                   className="w-full px-3 py-2 border rounded-lg"
+                  disabled={isDerived && !editingChar.overrides.name}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">性格</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium">性格</label>
+                  {isDerived && (
+                    <label className="flex items-center gap-1 text-xs text-purple-600">
+                      <input
+                        type="checkbox"
+                        checked={editingChar.overrides.personality}
+                        onChange={() => toggleOverride('personality')}
+                        className="w-3 h-3"
+                      />
+                      カスタマイズ
+                    </label>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={editingChar.definition.personality}
@@ -1933,11 +2135,25 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
                     definition: {...editingChar.definition, personality: e.target.value}
                   })}
                   className="w-full px-3 py-2 border rounded-lg"
+                  disabled={isDerived && !editingChar.overrides.personality}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">話し方</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium">話し方</label>
+                  {isDerived && (
+                    <label className="flex items-center gap-1 text-xs text-purple-600">
+                      <input
+                        type="checkbox"
+                        checked={editingChar.overrides.speakingStyle}
+                        onChange={() => toggleOverride('speakingStyle')}
+                        className="w-3 h-3"
+                      />
+                      カスタマイズ
+                    </label>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={editingChar.definition.speakingStyle}
@@ -1946,12 +2162,25 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
                     definition: {...editingChar.definition, speakingStyle: e.target.value}
                   })}
                   className="w-full px-3 py-2 border rounded-lg"
+                  disabled={isDerived && !editingChar.overrides.speakingStyle}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1">一人称</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium">一人称</label>
+                    {isDerived && (
+                      <label className="flex items-center gap-1 text-xs text-purple-600">
+                        <input
+                          type="checkbox"
+                          checked={editingChar.overrides.firstPerson}
+                          onChange={() => toggleOverride('firstPerson')}
+                          className="w-3 h-3"
+                        />
+                      </label>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={editingChar.definition.firstPerson}
@@ -1960,10 +2189,23 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
                       definition: {...editingChar.definition, firstPerson: e.target.value}
                     })}
                     className="w-full px-3 py-2 border rounded-lg"
+                    disabled={isDerived && !editingChar.overrides.firstPerson}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">二人称</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium">二人称</label>
+                    {isDerived && (
+                      <label className="flex items-center gap-1 text-xs text-purple-600">
+                        <input
+                          type="checkbox"
+                          checked={editingChar.overrides.secondPerson}
+                          onChange={() => toggleOverride('secondPerson')}
+                          className="w-3 h-3"
+                        />
+                      </label>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={editingChar.definition.secondPerson}
@@ -1972,6 +2214,7 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
                       definition: {...editingChar.definition, secondPerson: e.target.value}
                     })}
                     className="w-full px-3 py-2 border rounded-lg"
+                    disabled={isDerived && !editingChar.overrides.secondPerson}
                   />
                 </div>
               </div>
@@ -2035,18 +2278,112 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">アバター絵文字</label>
-                <input
-                  type="text"
-                  value={editingChar.features.avatar}
-                  onChange={(e) => setEditingChar({
-                    ...editingChar,
-                    features: {...editingChar.features, avatar: e.target.value}
-                  })}
-                  className="w-full px-3 py-2 border rounded-lg text-2xl"
-                  maxLength={2}
-                />
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium">アバター</label>
+                  {isDerived && (
+                    <label className="flex items-center gap-1 text-xs text-purple-600">
+                      <input
+                        type="checkbox"
+                        checked={editingChar.overrides.avatar}
+                        onChange={() => toggleOverride('avatar')}
+                        className="w-3 h-3"
+                      />
+                      カスタマイズ
+                    </label>
+                  )}
+                </div>
+
+                <div className="flex gap-2 mb-2">
+                  <button
+                    onClick={() => setEditingChar({
+                      ...editingChar,
+                      features: {...editingChar.features, avatarType: 'emoji'}
+                    })}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                      editingChar.features.avatarType === 'emoji'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                    disabled={isDerived && !editingChar.overrides.avatar}
+                  >
+                    😊 絵文字
+                  </button>
+                  <button
+                    onClick={() => setEditingChar({
+                      ...editingChar,
+                      features: {...editingChar.features, avatarType: 'image'}
+                    })}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                      editingChar.features.avatarType === 'image'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                    disabled={isDerived && !editingChar.overrides.avatar}
+                  >
+                    <Image size={14} className="inline mr-1" />
+                    画像
+                  </button>
+                </div>
+
+                {editingChar.features.avatarType === 'emoji' ? (
+                  <input
+                    type="text"
+                    value={editingChar.features.avatar}
+                    onChange={(e) => setEditingChar({
+                      ...editingChar,
+                      features: {...editingChar.features, avatar: e.target.value}
+                    })}
+                    className="w-full px-3 py-2 border rounded-lg text-2xl"
+                    maxLength={2}
+                    placeholder="絵文字を入力"
+                    disabled={isDerived && !editingChar.overrides.avatar}
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    {editingChar.features.avatarImage && (
+                      <div className="flex items-center gap-3">
+                        <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-100">
+                          <img
+                            src={editingChar.features.avatarImage}
+                            alt="Avatar preview"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <button
+                          onClick={() => setEditingChar({
+                            ...editingChar,
+                            features: {...editingChar.features, avatarImage: null}
+                          })}
+                          className="text-red-600 hover:text-red-700 text-sm"
+                          disabled={isDerived && !editingChar.overrides.avatar}
+                        >
+                          <Trash2 size={14} className="inline mr-1" />
+                          削除
+                        </button>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => avatarImageInputRef.current?.click()}
+                      className="w-full px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition text-sm flex items-center justify-center gap-2"
+                      disabled={isDerived && !editingChar.overrides.avatar}
+                    >
+                      <Upload size={16} />
+                      {editingChar.features.avatarImage ? '画像を変更' : '画像をアップロード'}
+                    </button>
+                    <p className="text-xs text-gray-500">
+                      JPG, PNG, GIF対応（最大2MB）
+                    </p>
+                  </div>
+                )}
               </div>
+
+              <input
+                ref={avatarImageInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarImageUpload}
+                className="hidden"
+              />
 
               <div className="border-t pt-3 space-y-3">
                 <h4 className="font-semibold text-sm">機能設定</h4>
@@ -2172,40 +2509,60 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
                     キャラクターがありません
                   </p>
                 ) : (
-                  characters.map(char => (
-                    <div key={char.id} className="border rounded-lg p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{char.features.avatar}</span>
-                        <div>
-                          <div className="font-semibold">{char.name}</div>
-                          <div className="text-xs text-gray-500">{char.definition.personality}</div>
+                  characters.map(char => {
+                    const baseChar = char.baseCharacterId ? getBaseCharacter(char.baseCharacterId) : null;
+                    return (
+                      <div key={char.id} className="border rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <AvatarDisplay character={char} size="md" />
+                            <div className="min-w-0 flex-1">
+                              <div className="font-semibold flex items-center gap-2">
+                                {char.name}
+                                {baseChar && (
+                                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded flex items-center gap-1">
+                                    <Layers size={10} />
+                                    派生元: {baseChar.name}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-500">{char.definition.personality}</div>
+                            </div>
+                          </div>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button
+                              onClick={() => handleCreateDerived(char)}
+                              className="p-2 text-purple-600 hover:bg-purple-50 rounded"
+                              title="派生キャラを作成"
+                            >
+                              <Layers size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleEdit(char)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                              title="編集"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button
+                              onClick={() => exportCharacter(char.id)}
+                              className="p-2 text-green-600 hover:bg-green-50 rounded"
+                              title="エクスポート"
+                            >
+                              <Download size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(char.id)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded"
+                              title="削除"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => handleEdit(char)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-                          title="編集"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button
-                          onClick={() => exportCharacter(char.id)}
-                          className="p-2 text-green-600 hover:bg-green-50 rounded"
-                          title="エクスポート"
-                        >
-                          <Download size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(char.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded"
-                          title="削除"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </>
@@ -2258,6 +2615,37 @@ const ConfirmDialog = ({ title, message, onConfirm, onCancel }) => {
         </div>
       </div>
     </div>
+  );
+};
+
+// Avatar Display Component
+const AvatarDisplay = ({ character, size = 'md' }) => {
+  if (!character) return null;
+
+  const sizeClasses = {
+    sm: 'w-6 h-6 text-sm',
+    md: 'w-10 h-10 text-2xl',
+    lg: 'w-16 h-16 text-4xl'
+  };
+
+  const sizeClass = sizeClasses[size] || sizeClasses.md;
+
+  if (character.features.avatarType === 'image' && character.features.avatarImage) {
+    return (
+      <div className={`${sizeClass} rounded-full overflow-hidden flex-shrink-0 bg-gray-100`}>
+        <img
+          src={character.features.avatarImage}
+          alt={character.name}
+          className="w-full h-full object-cover"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <span className={`${sizeClass} flex items-center justify-center flex-shrink-0`}>
+      {character.features.avatar || '😊'}
+    </span>
   );
 };
 
