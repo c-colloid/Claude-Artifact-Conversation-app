@@ -35,6 +35,8 @@ const MultiCharacterChat = () => {
   const [editingContent, setEditingContent] = useState('');
   const [regeneratePrefill, setRegeneratePrefill] = useState('');
   const [showRegeneratePrefill, setShowRegeneratePrefill] = useState(null);
+  const [editingConversationTitle, setEditingConversationTitle] = useState(null);
+  const [editingTitleText, setEditingTitleText] = useState('');
 
   // Stats
   const [usageStats, setUsageStats] = useState({
@@ -130,7 +132,8 @@ const MultiCharacterChat = () => {
       firstPerson: '私',
       secondPerson: 'あなた',
       background: '',
-      catchphrases: []
+      catchphrases: [],
+      customPrompt: ''
     },
     features: {
       emotionEnabled: true,
@@ -154,6 +157,7 @@ const MultiCharacterChat = () => {
     backgroundInfo: '', // Situation, relationships, etc.
     narrationEnabled: true,
     autoGenerateNarration: false, // AI automatically generates narration
+    relationships: [], // Array of {char1Id, char2Id, type, description}
     messages: [],
     created: new Date().toISOString(),
     updated: new Date().toISOString()
@@ -200,7 +204,8 @@ const MultiCharacterChat = () => {
         firstPerson: character.overrides.firstPerson ? character.definition.firstPerson : effectiveBase.definition.firstPerson,
         secondPerson: character.overrides.secondPerson ? character.definition.secondPerson : effectiveBase.definition.secondPerson,
         background: character.overrides.background ? character.definition.background : effectiveBase.definition.background,
-        catchphrases: character.overrides.catchphrases ? character.definition.catchphrases : effectiveBase.definition.catchphrases
+        catchphrases: character.overrides.catchphrases ? character.definition.catchphrases : effectiveBase.definition.catchphrases,
+        customPrompt: character.overrides.customPrompt ? character.definition.customPrompt : effectiveBase.definition.customPrompt
       },
       features: {
         emotionEnabled: character.overrides.emotionEnabled !== undefined ? character.features.emotionEnabled : effectiveBase.features.emotionEnabled,
@@ -396,11 +401,30 @@ const MultiCharacterChat = () => {
       if (feat.affectionEnabled) {
         prompt += `- 現在の好感度: ${feat.affectionLevel}/100\n`;
       }
+      if (def.customPrompt) {
+        prompt += `\n### 追加設定\n${def.customPrompt}\n`;
+      }
       prompt += `\n`;
     });
 
     if (conversation.backgroundInfo) {
       prompt += `## 背景情報・シチュエーション\n${conversation.backgroundInfo}\n\n`;
+    }
+
+    if (conversation.relationships && conversation.relationships.length > 0) {
+      prompt += `## キャラクター間の関係性\n`;
+      conversation.relationships.forEach((rel) => {
+        const char1 = participants.find(c => c.id === rel.char1Id);
+        const char2 = participants.find(c => c.id === rel.char2Id);
+        if (char1 && char2) {
+          prompt += `- ${char1.name} と ${char2.name}: ${rel.type}`;
+          if (rel.description) {
+            prompt += ` (${rel.description})`;
+          }
+          prompt += `\n`;
+        }
+      });
+      prompt += `\n`;
     }
 
     prompt += `## 重要な指示\n`;
@@ -925,10 +949,15 @@ const MultiCharacterChat = () => {
           // Migrate characters to add missing features
           const migratedCharacters = data.characters.map(char => {
             const features = char.features || {};
+            const definition = char.definition || {};
             return {
               ...char,
               baseCharacterId: char.baseCharacterId || null,
               overrides: char.overrides || {},
+              definition: {
+                ...definition,
+                customPrompt: definition.customPrompt || ''
+              },
               features: {
                 emotionEnabled: features.emotionEnabled !== undefined ? features.emotionEnabled : true,
                 affectionEnabled: features.affectionEnabled !== undefined ? features.affectionEnabled : false,
@@ -951,7 +980,8 @@ const MultiCharacterChat = () => {
             ...conv,
             narrationEnabled: conv.narrationEnabled !== undefined ? conv.narrationEnabled : true,
             autoGenerateNarration: conv.autoGenerateNarration || false,
-            backgroundInfo: conv.backgroundInfo || ''
+            backgroundInfo: conv.backgroundInfo || '',
+            relationships: conv.relationships || []
           }));
           setConversations(migratedConversations);
         }
@@ -1326,7 +1356,30 @@ const MultiCharacterChat = () => {
                           >
                             <div className="flex items-center gap-2 mb-1">
                               {isActive && <Check size={12} className="text-indigo-600 flex-shrink-0" />}
-                              <span className="font-semibold text-sm truncate">{conv.title}</span>
+                              {editingConversationTitle === conv.id ? (
+                                <input
+                                  type="text"
+                                  value={editingTitleText}
+                                  onChange={(e) => setEditingTitleText(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      updateConversation(conv.id, { title: editingTitleText });
+                                      setEditingConversationTitle(null);
+                                    } else if (e.key === 'Escape') {
+                                      setEditingConversationTitle(null);
+                                    }
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onBlur={() => {
+                                    updateConversation(conv.id, { title: editingTitleText });
+                                    setEditingConversationTitle(null);
+                                  }}
+                                  autoFocus
+                                  className="flex-1 px-2 py-0.5 text-sm font-semibold border border-indigo-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                              ) : (
+                                <span className="font-semibold text-sm truncate">{conv.title}</span>
+                              )}
                             </div>
                             <div className="flex items-center justify-between text-xs text-gray-500">
                               <span>{conv.messages.length}件</span>
@@ -1337,6 +1390,17 @@ const MultiCharacterChat = () => {
                             </div>
                           </button>
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition flex-shrink-0">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingConversationTitle(conv.id);
+                                setEditingTitleText(conv.title);
+                              }}
+                              className="p-1 hover:bg-blue-100 rounded"
+                              title="タイトル編集"
+                            >
+                              <Edit2 size={12} className="text-blue-600" />
+                            </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1806,13 +1870,38 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
   const [localNarration, setLocalNarration] = useState(conversation.narrationEnabled);
   const [localAutoNarration, setLocalAutoNarration] = useState(conversation.autoGenerateNarration || false);
   const [localParticipants, setLocalParticipants] = useState(conversation.participantIds);
+  const [localRelationships, setLocalRelationships] = useState(conversation.relationships || []);
+
+  const relationshipTypes = ['友人', '親友', '恋人', 'ライバル', '家族', '師弟', '同僚', 'その他'];
 
   const toggleParticipant = (charId) => {
-    setLocalParticipants(prev => 
+    setLocalParticipants(prev =>
       prev.includes(charId)
         ? prev.filter(id => id !== charId)
         : [...prev, charId]
     );
+  };
+
+  const addRelationship = () => {
+    if (localParticipants.length < 2) return;
+    setLocalRelationships(prev => [...prev, {
+      char1Id: localParticipants[0],
+      char2Id: localParticipants[1],
+      type: '友人',
+      description: ''
+    }]);
+  };
+
+  const updateRelationship = (index, field, value) => {
+    setLocalRelationships(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const deleteRelationship = (index) => {
+    setLocalRelationships(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSave = () => {
@@ -1821,7 +1910,8 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
       backgroundInfo: localBackground,
       narrationEnabled: localNarration,
       autoGenerateNarration: localAutoNarration,
-      participantIds: localParticipants
+      participantIds: localParticipants,
+      relationships: localRelationships
     });
     onClose();
   };
@@ -1915,6 +2005,86 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
                   <div className="text-xs text-gray-500">{char.definition.personality}</div>
                 </div>
               </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-medium text-gray-700">
+            キャラクター間の関係性 ({localRelationships.length}件)
+          </label>
+          <button
+            onClick={addRelationship}
+            disabled={localParticipants.length < 2}
+            className="text-xs px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition disabled:bg-gray-100 disabled:text-gray-400 flex items-center gap-1"
+          >
+            <Plus size={14} />
+            追加
+          </button>
+        </div>
+        {localParticipants.length < 2 ? (
+          <p className="text-xs text-gray-500">2人以上のキャラクターを追加すると関係性を設定できます</p>
+        ) : localRelationships.length === 0 ? (
+          <p className="text-xs text-gray-500">関係性を追加して、キャラクター間の繋がりを定義できます</p>
+        ) : (
+          <div className="space-y-3 max-h-48 overflow-y-auto">
+            {localRelationships.map((rel, idx) => (
+              <div key={idx} className="p-3 border rounded-lg bg-gray-50 space-y-2">
+                <div className="flex items-center gap-2">
+                  <select
+                    value={rel.char1Id}
+                    onChange={(e) => updateRelationship(idx, 'char1Id', e.target.value)}
+                    className="flex-1 px-2 py-1 text-sm border rounded"
+                  >
+                    {localParticipants.map(charId => {
+                      const char = characters.find(c => c.id === charId);
+                      return char ? (
+                        <option key={charId} value={charId}>{char.name}</option>
+                      ) : null;
+                    })}
+                  </select>
+                  <span className="text-xs text-gray-500">と</span>
+                  <select
+                    value={rel.char2Id}
+                    onChange={(e) => updateRelationship(idx, 'char2Id', e.target.value)}
+                    className="flex-1 px-2 py-1 text-sm border rounded"
+                  >
+                    {localParticipants.map(charId => {
+                      const char = characters.find(c => c.id === charId);
+                      return char ? (
+                        <option key={charId} value={charId}>{char.name}</option>
+                      ) : null;
+                    })}
+                  </select>
+                </div>
+                <select
+                  value={rel.type}
+                  onChange={(e) => updateRelationship(idx, 'type', e.target.value)}
+                  className="w-full px-2 py-1 text-sm border rounded"
+                >
+                  {relationshipTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={rel.description}
+                    onChange={(e) => updateRelationship(idx, 'description', e.target.value)}
+                    placeholder="詳細な説明（オプション）"
+                    className="flex-1 px-2 py-1 text-sm border rounded"
+                  />
+                  <button
+                    onClick={() => deleteRelationship(idx)}
+                    className="p-1 text-red-600 hover:bg-red-100 rounded"
+                    title="削除"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -2275,6 +2445,36 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
                     ))}
                   </div>
                 )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium">カスタムシステムプロンプト</label>
+                  {isDerived && (
+                    <label className="flex items-center gap-1 text-xs text-purple-600">
+                      <input
+                        type="checkbox"
+                        checked={editingChar.overrides.customPrompt}
+                        onChange={() => toggleOverride('customPrompt')}
+                        className="w-3 h-3"
+                      />
+                      カスタマイズ
+                    </label>
+                  )}
+                </div>
+                <textarea
+                  value={editingChar.definition.customPrompt || ''}
+                  onChange={(e) => setEditingChar({
+                    ...editingChar,
+                    definition: {...editingChar.definition, customPrompt: e.target.value}
+                  })}
+                  placeholder="キャラクターに関する追加の指示や設定を記述できます。&#10;例: このキャラクターは特定の話題には強い意見を持っています。&#10;より詳細なロールプレイ設定や制約を記述できます。"
+                  className="w-full px-3 py-2 border rounded-lg text-sm min-h-[100px]"
+                  disabled={isDerived && !editingChar.overrides.customPrompt}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  キャラクター設定に追加したい詳細な指示を自由に記述できます
+                </p>
               </div>
 
               <div>
