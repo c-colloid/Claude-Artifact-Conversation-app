@@ -7,6 +7,7 @@ const MultiCharacterChat = () => {
 
   // Characters state
   const [characters, setCharacters] = useState([]);
+  const [characterGroups, setCharacterGroups] = useState([]);
   const [showCharacterModal, setShowCharacterModal] = useState(false);
 
   // Conversation state
@@ -54,7 +55,7 @@ const MultiCharacterChat = () => {
   // UI state
   const [showSettings, setShowSettings] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
-  const [sidebarView, setSidebarView] = useState('conversations');
+  const [sidebarView, setSidebarView] = useState('conversations'); // 'conversations', 'history', 'stats'
   const [showConversationSettings, setShowConversationSettings] = useState(false);
 
   // Confirmation dialog state
@@ -158,6 +159,8 @@ const MultiCharacterChat = () => {
     narrationEnabled: true,
     autoGenerateNarration: false, // AI automatically generates narration
     relationships: [], // Array of {char1Id, char2Id, type, description}
+    parentConversationId: null, // For forked conversations
+    forkPoint: null, // Message index where this was forked
     messages: [],
     created: new Date().toISOString(),
     updated: new Date().toISOString()
@@ -486,6 +489,28 @@ const MultiCharacterChat = () => {
     return newConv.id;
   };
 
+  const forkConversation = (conversationId, messageIndex) => {
+    const originalConv = conversations.find(c => c.id === conversationId);
+    if (!originalConv) return;
+
+    const forkedConv = {
+      ...getDefaultConversation(),
+      title: `${originalConv.title}（分岐${messageIndex + 1}）`,
+      participantIds: [...originalConv.participantIds],
+      backgroundInfo: originalConv.backgroundInfo,
+      narrationEnabled: originalConv.narrationEnabled,
+      autoGenerateNarration: originalConv.autoGenerateNarration,
+      relationships: originalConv.relationships ? [...originalConv.relationships] : [],
+      parentConversationId: conversationId,
+      forkPoint: messageIndex,
+      messages: originalConv.messages.slice(0, messageIndex + 1)
+    };
+
+    setConversations(prev => [...prev, forkedConv]);
+    setCurrentConversationId(forkedConv.id);
+    return forkedConv.id;
+  };
+
   const deleteConversation = (conversationId) => {
     const conv = conversations.find(c => c.id === conversationId);
     if (!conv) return;
@@ -507,6 +532,75 @@ const MultiCharacterChat = () => {
       },
       onCancel: () => setConfirmDialog(null)
     });
+  };
+
+  // Character Group Management
+  const createCharacterGroup = (name, characterIds) => {
+    const newGroup = {
+      id: generateId(),
+      name,
+      characterIds,
+      created: new Date().toISOString()
+    };
+    setCharacterGroups(prev => [...prev, newGroup]);
+    return newGroup.id;
+  };
+
+  const updateCharacterGroup = (groupId, updates) => {
+    setCharacterGroups(prev =>
+      prev.map(group => group.id === groupId ? { ...group, ...updates } : group)
+    );
+  };
+
+  const deleteCharacterGroup = (groupId) => {
+    setCharacterGroups(prev => prev.filter(g => g.id !== groupId));
+  };
+
+  const applyCharacterGroup = (groupId) => {
+    const group = characterGroups.find(g => g.id === groupId);
+    if (!group || !currentConversationId) return;
+
+    // Add all characters from the group to the current conversation
+    const currentConv = getCurrentConversation();
+    if (!currentConv) return;
+
+    const newParticipantIds = [...new Set([...currentConv.participantIds, ...group.characterIds])];
+    updateConversation(currentConversationId, {
+      participantIds: newParticipantIds
+    });
+  };
+
+  // Stats calculation
+  const getConversationStats = () => {
+    const currentConv = getCurrentConversation();
+    if (!currentConv) return null;
+
+    const stats = {
+      totalMessages: currentConv.messages.length,
+      userMessages: 0,
+      characterMessages: {},
+      narrationCount: 0,
+      characterAffection: {}
+    };
+
+    currentConv.messages.forEach(msg => {
+      if (msg.type === 'user') {
+        stats.userMessages++;
+      } else if (msg.type === 'narration') {
+        stats.narrationCount++;
+      } else if (msg.type === 'character' && msg.characterId) {
+        stats.characterMessages[msg.characterId] = (stats.characterMessages[msg.characterId] || 0) + 1;
+
+        if (msg.affection !== undefined) {
+          if (!stats.characterAffection[msg.characterId]) {
+            stats.characterAffection[msg.characterId] = [];
+          }
+          stats.characterAffection[msg.characterId].push(msg.affection);
+        }
+      }
+    });
+
+    return stats;
   };
 
   const exportConversation = (conversationId) => {
@@ -846,6 +940,11 @@ const MultiCharacterChat = () => {
     });
   };
 
+  const handleFork = (index) => {
+    if (!currentConversationId) return;
+    forkConversation(currentConversationId, index);
+  };
+
   const handleRegenerateFrom = async (index) => {
     const currentMessages = getCurrentMessages();
     const historyUpToPoint = currentMessages.slice(0, index);
@@ -917,6 +1016,7 @@ const MultiCharacterChat = () => {
     try {
       const saveData = {
         characters,
+        characterGroups,
         conversations,
         currentConversationId,
         selectedModel,
@@ -973,7 +1073,11 @@ const MultiCharacterChat = () => {
           });
           setCharacters(migratedCharacters);
         }
-        
+
+        if (data.characterGroups && data.characterGroups.length > 0) {
+          setCharacterGroups(data.characterGroups);
+        }
+
         if (data.conversations && data.conversations.length > 0) {
           // Migrate conversations to add missing fields
           const migratedConversations = data.conversations.map(conv => ({
@@ -981,7 +1085,9 @@ const MultiCharacterChat = () => {
             narrationEnabled: conv.narrationEnabled !== undefined ? conv.narrationEnabled : true,
             autoGenerateNarration: conv.autoGenerateNarration || false,
             backgroundInfo: conv.backgroundInfo || '',
-            relationships: conv.relationships || []
+            relationships: conv.relationships || [],
+            parentConversationId: conv.parentConversationId || null,
+            forkPoint: conv.forkPoint || null
           }));
           setConversations(migratedConversations);
         }
@@ -1297,8 +1403,8 @@ const MultiCharacterChat = () => {
             <button
               onClick={() => setSidebarView('conversations')}
               className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition ${
-                sidebarView === 'conversations' 
-                  ? 'bg-indigo-600 text-white' 
+                sidebarView === 'conversations'
+                  ? 'bg-indigo-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -1308,14 +1414,26 @@ const MultiCharacterChat = () => {
             <button
               onClick={() => setSidebarView('messages')}
               className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition ${
-                sidebarView === 'messages' 
-                  ? 'bg-indigo-600 text-white' 
+                sidebarView === 'messages'
+                  ? 'bg-indigo-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
               disabled={!currentConversation}
             >
               <Hash size={12} className="inline mr-1" />
               履歴
+            </button>
+            <button
+              onClick={() => setSidebarView('stats')}
+              className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition ${
+                sidebarView === 'stats'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              disabled={!currentConversation}
+            >
+              <BookOpen size={12} className="inline mr-1" />
+              統計
             </button>
           </div>
 
@@ -1477,7 +1595,82 @@ const MultiCharacterChat = () => {
               </div>
             )}
             </>
-          )}
+          ) : sidebarView === 'stats' ? (
+            <>
+            <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+              <BookOpen size={16} />
+              統計情報
+            </h3>
+            {(() => {
+              const stats = getConversationStats();
+              if (!stats) return <p className="text-sm text-gray-500">統計情報がありません</p>;
+
+              return (
+                <div className="space-y-3">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <h4 className="font-semibold text-sm text-blue-800 mb-2">メッセージ</h4>
+                    <div className="text-xs space-y-1">
+                      <div className="flex justify-between">
+                        <span>総メッセージ数:</span>
+                        <span className="font-semibold">{stats.totalMessages}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>あなた:</span>
+                        <span className="font-semibold text-blue-600">{stats.userMessages}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>地の文:</span>
+                        <span className="font-semibold text-amber-600">{stats.narrationCount}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                    <h4 className="font-semibold text-sm text-purple-800 mb-2">キャラクター発言数</h4>
+                    <div className="text-xs space-y-1">
+                      {Object.entries(stats.characterMessages).map(([charId, count]) => {
+                        const char = getCharacterById(charId);
+                        return (
+                          <div key={charId} className="flex justify-between items-center">
+                            <div className="flex items-center gap-1">
+                              {char && <AvatarDisplay character={char} size="sm" />}
+                              <span>{char?.name || '不明'}</span>
+                            </div>
+                            <span className="font-semibold text-purple-600">{count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {Object.keys(stats.characterAffection).length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <h4 className="font-semibold text-sm text-red-800 mb-2">平均好感度</h4>
+                      <div className="text-xs space-y-1">
+                        {Object.entries(stats.characterAffection).map(([charId, affections]) => {
+                          const char = getCharacterById(charId);
+                          const avg = Math.round(affections.reduce((a, b) => a + b, 0) / affections.length);
+                          return (
+                            <div key={charId} className="flex justify-between items-center">
+                              <div className="flex items-center gap-1">
+                                {char && <AvatarDisplay character={char} size="sm" />}
+                                <span>{char?.name || '不明'}</span>
+                              </div>
+                              <span className="font-semibold text-red-600 flex items-center gap-1">
+                                <Heart size={10} />
+                                {avg}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            </>
+          ) : null}
           </div>
         </div>
 
@@ -1516,6 +1709,7 @@ const MultiCharacterChat = () => {
               handleSaveEdit={handleSaveEdit}
               handleCancelEdit={() => setEditingIndex(null)}
               handleDelete={handleDelete}
+              handleFork={handleFork}
               showRegeneratePrefill={showRegeneratePrefill}
               setShowRegeneratePrefill={setShowRegeneratePrefill}
               regeneratePrefill={regeneratePrefill}
@@ -1652,6 +1846,8 @@ const MultiCharacterChat = () => {
         <CharacterModal
           characters={characters}
           setCharacters={setCharacters}
+          characterGroups={characterGroups}
+          setCharacterGroups={setCharacterGroups}
           getDefaultCharacter={getDefaultCharacter}
           exportCharacter={exportCharacter}
           importCharacter={importCharacter}
@@ -1690,9 +1886,9 @@ const MultiCharacterChat = () => {
 };
 
 // Message Bubble Component
-const MessageBubble = ({ 
-  message, 
-  index, 
+const MessageBubble = ({
+  message,
+  index,
   character,
   editingIndex,
   editingContent,
@@ -1701,6 +1897,7 @@ const MessageBubble = ({
   handleSaveEdit,
   handleCancelEdit,
   handleDelete,
+  handleFork,
   showRegeneratePrefill,
   setShowRegeneratePrefill,
   regeneratePrefill,
@@ -1757,24 +1954,31 @@ const MessageBubble = ({
             )}
           </div>
           <div className="flex gap-1">
-            <button 
-              onClick={() => handleEdit(index)} 
-              className="p-1 text-gray-500 hover:text-blue-600" 
+            <button
+              onClick={() => handleFork(index)}
+              className="p-1 text-gray-500 hover:text-green-600"
+              title="ここから分岐"
+            >
+              <Copy size={14} />
+            </button>
+            <button
+              onClick={() => handleEdit(index)}
+              className="p-1 text-gray-500 hover:text-blue-600"
               title="編集"
             >
               <Edit2 size={14} />
             </button>
-            <button 
-              onClick={() => handleDelete(index)} 
-              className="p-1 text-gray-500 hover:text-red-600" 
+            <button
+              onClick={() => handleDelete(index)}
+              className="p-1 text-gray-500 hover:text-red-600"
               title="削除"
             >
               <Trash2 size={14} />
             </button>
             {!isUser && !isNarration && (
-              <button 
-                onClick={() => setShowRegeneratePrefill(showRegeneratePrefill === index ? null : index)} 
-                className="p-1 text-gray-500 hover:text-purple-600" 
+              <button
+                onClick={() => setShowRegeneratePrefill(showRegeneratePrefill === index ? null : index)}
+                className="p-1 text-gray-500 hover:text-purple-600"
                 title="再生成"
               >
                 <RotateCcw size={14} />
@@ -2109,11 +2313,22 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
 };
 
 // Character Modal Component (simplified version)
-const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, exportCharacter, importCharacter, characterFileInputRef, onClose }) => {
+const CharacterModal = ({ characters, setCharacters, characterGroups, setCharacterGroups, getDefaultCharacter, exportCharacter, importCharacter, characterFileInputRef, onClose }) => {
   const [editingChar, setEditingChar] = useState(null);
   const [isNew, setIsNew] = useState(false);
   const [isDerived, setIsDerived] = useState(false);
+  const [viewTab, setViewTab] = useState('characters'); // 'characters' or 'groups'
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const avatarImageInputRef = useRef(null);
+
+  const filteredCharacters = characters.filter(char => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return char.name.toLowerCase().includes(query) ||
+           char.definition.personality?.toLowerCase().includes(query) ||
+           char.definition.background?.toLowerCase().includes(query);
+  });
 
   const handleCreate = () => {
     const newChar = getDefaultCharacter();
@@ -2703,13 +2918,31 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
                 </button>
               </div>
 
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="キャラクター名や性格で検索..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-lg pr-10"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+
               <div className="space-y-2">
-                {characters.length === 0 ? (
+                {filteredCharacters.length === 0 ? (
                   <p className="text-center text-gray-500 py-8">
-                    キャラクターがありません
+                    {searchQuery ? '検索結果がありません' : 'キャラクターがありません'}
                   </p>
                 ) : (
-                  characters.map(char => {
+                  filteredCharacters.map(char => {
                     const baseChar = char.baseCharacterId ? getBaseCharacter(char.baseCharacterId) : null;
                     return (
                       <div key={char.id} className="border rounded-lg p-3">
