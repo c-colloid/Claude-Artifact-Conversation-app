@@ -451,6 +451,10 @@ const MultiCharacterChat = () => {
   // ===== パフォーマンス最適化: useMemoで計算コストの高い値をメモ化 =====
 
   // 現在の会話をメモ化
+  /**
+   * 現在選択されている会話を取得（useMemoでメモ化）
+   * conversationsまたはcurrentConversationIdが変更された時のみ再計算
+   */
   const getCurrentConversation = useMemo(() => {
     return conversations.find(c => c.id === currentConversationId);
   }, [conversations, currentConversationId]);
@@ -458,9 +462,11 @@ const MultiCharacterChat = () => {
   /**
    * 現在の会話の全メッセージを取得（内部処理用）
    * 編集、削除、フォークなどの機能で使用
+   * getCurrentConversationが変更された時のみ再計算
    */
   const getAllMessages = useMemo(() => {
-    return getCurrentConversation?.messages || [];
+    if (!getCurrentConversation) return [];
+    return getCurrentConversation.messages || [];
   }, [getCurrentConversation]);
 
   /**
@@ -469,16 +475,16 @@ const MultiCharacterChat = () => {
    * 長い会話でのレンダリング負荷を削減
    */
   const getVisibleMessages = useMemo(() => {
-    const messages = getAllMessages;
-    if (messages.length <= visibleMessageCount) {
-      return messages;
+    if (getAllMessages.length <= visibleMessageCount) {
+      return getAllMessages;
     }
     // 最新のN件を取得（配列の末尾から）
-    return messages.slice(-visibleMessageCount);
+    return getAllMessages.slice(-visibleMessageCount);
   }, [getAllMessages, visibleMessageCount]);
 
   /**
    * 後方互換性のため、getCurrentMessagesをgetAllMessagesのエイリアスとして保持
+   * 元の実装との互換性を維持
    */
   const getCurrentMessages = getAllMessages;
 
