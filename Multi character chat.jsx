@@ -18,7 +18,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { AlertCircle, Trash2, Edit2, RotateCcw, Send, Plus, Eye, EyeOff, Settings, Menu, X, Hash, RefreshCw, Save, HardDrive, User, Heart, Download, Upload, ChevronDown, ChevronRight, Layers, Copy, MessageSquare, Check, Users, BookOpen, FileText, Image } from 'lucide-react';
+import { AlertCircle, Trash2, Edit2, RotateCcw, Send, Plus, Eye, EyeOff, Settings, Menu, X, Hash, RefreshCw, Save, HardDrive, User, Heart, Download, Upload, ChevronDown, ChevronRight, Layers, Copy, MessageSquare, Check, Users, BookOpen, FileText, Image as ImageIcon } from 'lucide-react';
 
 /**
  * デバウンス関数
@@ -3193,7 +3193,7 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
                     }`}
                     disabled={isDerived && !editingChar.overrides.avatar}
                   >
-                    <Image size={14} className="inline mr-1" />
+                    <ImageIcon size={14} className="inline mr-1" />
                     画像
                   </button>
                 </div>
