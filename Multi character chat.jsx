@@ -331,7 +331,7 @@ const MultiCharacterChat = () => {
   // UI state
   const [showSettings, setShowSettings] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
-  const [sidebarView, setSidebarView] = useState('conversations'); // 'conversations', 'history', 'stats'
+  const [sidebarView, setSidebarView] = useState('conversations'); // 'conversations', 'messages', 'stats'
   const [showConversationSettings, setShowConversationSettings] = useState(false);
 
   // Message display optimization
@@ -1355,6 +1355,13 @@ const MultiCharacterChat = () => {
    */
   const handleRegenerateFrom = useCallback(async (index) => {
     const currentMessages = getCurrentMessages;
+
+    // Prevent regenerating from index 0 which would clear all messages
+    if (index === 0) {
+      setError('最初のメッセージからは再生成できません。');
+      return;
+    }
+
     const historyUpToPoint = currentMessages.slice(0, index);
 
     updateConversation(currentConversationId, {
@@ -1369,6 +1376,11 @@ const MultiCharacterChat = () => {
     setRegeneratePrefill('');
     setShowRegeneratePrefill(null);
   }, [getCurrentMessages, currentConversationId, updateConversation, regeneratePrefill, generateResponse]);
+
+  const scrollToMessage = useCallback((index) => {
+    messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setShowSidebar(false);
+  }, []);
 
   const fetchModels = async () => {
     setIsLoadingModels(true);
@@ -1946,7 +1958,7 @@ const MultiCharacterChat = () => {
               <p className="text-sm text-gray-500">会話がありません</p>
             )}
           </>
-          ) : (
+          ) : sidebarView === 'messages' ? (
             <>
             <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
               <Hash size={16} />
@@ -1961,10 +1973,7 @@ const MultiCharacterChat = () => {
                   return (
                     <button
                       key={idx}
-                      onClick={() => {
-                        messageRefs.current[idx]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        setShowSidebar(false);
-                      }}
+                      onClick={() => scrollToMessage(idx)}
                       className={`w-full text-left px-2 py-2 rounded-lg text-xs transition ${
                         msg.type === 'user' 
                           ? 'bg-blue-50 hover:bg-blue-100 text-blue-800' 
@@ -3100,10 +3109,41 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
         style={{ maxHeight: 'calc(100vh - 4rem)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="bg-white border-b p-4 flex items-center justify-between flex-shrink-0">
+        <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
           <h2 className="text-xl font-bold text-indigo-600">キャラクター管理</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
+            className="p-2 hover:bg-gray-100 rounded-lg"
+          >
             <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex border-b flex-shrink-0">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setEditingChar(null);
+            }}
+            className={`flex-1 px-4 py-3 font-medium ${!editingChar ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50' : 'text-gray-600 hover:bg-gray-50'}`}
+          >
+            キャラクター一覧
+          </button>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (editingChar) return;
+              handleCreate();
+            }}
+            className={`flex-1 px-4 py-3 font-medium ${editingChar ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50' : 'text-gray-600 hover:bg-gray-50'}`}
+          >
+            {editingChar ? '編集中' : '新規作成'}
           </button>
         </div>
 
