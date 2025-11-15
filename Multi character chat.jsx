@@ -870,7 +870,7 @@ const MultiCharacterChat = () => {
     if (!group || !currentConversationId) return;
 
     // Add all characters from the group to the current conversation
-    const currentConv = getCurrentConversation();
+    const currentConv = getCurrentConversation;
     if (!currentConv) return;
 
     const newParticipantIds = [...new Set([...currentConv.participantIds, ...group.characterIds])];
@@ -881,7 +881,7 @@ const MultiCharacterChat = () => {
 
   // Stats calculation
   const getConversationStats = () => {
-    const currentConv = getCurrentConversation();
+    const currentConv = getCurrentConversation;
     if (!currentConv) return null;
 
     const stats = {
@@ -1053,7 +1053,7 @@ const MultiCharacterChat = () => {
     setError('');
 
     try {
-      const conversation = getCurrentConversation();
+      const conversation = getCurrentConversation;
       if (!conversation) {
         throw new Error('会話が選択されていません');
       }
@@ -1176,7 +1176,7 @@ const MultiCharacterChat = () => {
       const updatedMessages = [...messages, ...parsedMessages];
       
       // Auto-generate title if still default
-      const conv = getCurrentConversation();
+      const conv = getCurrentConversation;
       if (conv) {
         const newTitle = conv.title === '新しい会話' && updatedMessages.length >= 2
           ? generateConversationTitle(updatedMessages)
@@ -1212,7 +1212,7 @@ const MultiCharacterChat = () => {
       timestamp: new Date().toISOString()
     };
 
-    const currentMessages = getCurrentMessages();
+    const currentMessages = getCurrentMessages;
     const newHistory = [...currentMessages, newMessage];
 
     updateConversation(currentConversationId, {
@@ -1225,11 +1225,11 @@ const MultiCharacterChat = () => {
 
   const handleEdit = (index) => {
     setEditingIndex(index);
-    setEditingContent(getCurrentMessages()[index].content);
+    setEditingContent(getCurrentMessages[index].content);
   };
 
   const handleSaveEdit = (index) => {
-    const currentMessages = getCurrentMessages();
+    const currentMessages = getCurrentMessages;
     const updated = [...currentMessages];
     updated[index].content = editingContent;
 
@@ -1241,7 +1241,7 @@ const MultiCharacterChat = () => {
   };
 
   const handleDelete = (index) => {
-    const currentMessages = getCurrentMessages();
+    const currentMessages = getCurrentMessages;
     const updated = currentMessages.filter((_, i) => i !== index);
 
     updateConversation(currentConversationId, {
@@ -1255,7 +1255,7 @@ const MultiCharacterChat = () => {
   };
 
   const handleRegenerateFrom = async (index) => {
-    const currentMessages = getCurrentMessages();
+    const currentMessages = getCurrentMessages;
     const historyUpToPoint = currentMessages.slice(0, index);
 
     updateConversation(currentConversationId, {
@@ -1544,8 +1544,8 @@ const MultiCharacterChat = () => {
     return lastSaved.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
   };
 
-  const currentConversation = getCurrentConversation();
-  const currentMessages = getCurrentMessages();
+  const currentConversation = getCurrentConversation;
+  const currentMessages = getCurrentMessages;
 
   if (!isInitialized) {
     return (
