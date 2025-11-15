@@ -1,3 +1,22 @@
+/**
+ * Multi Character Chat Application
+ *
+ * 複数キャラクターが参加できる会話アプリケーション
+ *
+ * 主な機能:
+ * - 複数キャラクターによる同時会話
+ * - キャラクター管理（作成、編集、削除、派生キャラクター）
+ * - 感情システム（7種類の感情、自動/手動管理）
+ * - 好感度システム（0-100、自動/手動管理）
+ * - アバター機能（絵文字/画像、ドラッグ&ドロップ、画像クロップ）
+ * - 地の文機能（自動生成可能）
+ * - 会話分岐機能
+ * - 会話設定（背景情報、関係性定義）
+ * - Extended Thinking対応
+ * - データのインポート/エクスポート
+ * - LocalStorageによる自動保存
+ */
+
 import React, { useState, useRef, useEffect } from 'react';
 import { AlertCircle, Trash2, Edit2, RotateCcw, Send, Plus, Eye, EyeOff, Settings, Menu, X, Hash, RefreshCw, Save, HardDrive, User, Heart, Download, Upload, ChevronDown, ChevronRight, Layers, Copy, MessageSquare, Check, Users, BookOpen, FileText, Image } from 'lucide-react';
 
@@ -69,7 +88,10 @@ const MultiCharacterChat = () => {
   const autoSaveTimerRef = useRef(null);
   const textareaRef = useRef(null);
 
+  // ===== 定数定義 =====
   const STORAGE_KEY = 'multi-character-chat-data-v1';
+  const AUTO_SAVE_DELAY = 2000; // ミリ秒
+  const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
 
   // Fallback models
   const fallbackModels = [
@@ -2320,6 +2342,10 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
   const [viewTab, setViewTab] = useState('characters'); // 'characters' or 'groups'
   const [editingGroup, setEditingGroup] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [showImageCropper, setShowImageCropper] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
   const avatarImageInputRef = useRef(null);
 
   const filteredCharacters = characters.filter(char => {
@@ -2399,32 +2425,78 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
     const file = event.target.files[0];
     if (!file) return;
 
-    // Validate file type
     if (!file.type.startsWith('image/')) {
       alert('画像ファイルを選択してください');
       return;
     }
 
-    // Validate file size (max 2MB)
-    if (file.size > 2 * 1024 * 1024) {
-      alert('ファイルサイズは2MB以下にしてください');
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      setUploadedImage(e.target.result);
+      setShowImageCropper(true);
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragEnter = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX;
+    const y = e.clientY;
+
+    if (x <= rect.left || x >= rect.right || y <= rect.top || y >= rect.bottom) {
+      setIsDragging(false);
+    }
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    const files = e.dataTransfer.files;
+    if (files.length === 0) return;
+
+    const file = files[0];
+    if (!file.type.startsWith('image/')) {
+      alert('画像ファイルをドロップしてください');
       return;
     }
 
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64Image = e.target.result;
-      setEditingChar({
-        ...editingChar,
-        features: {
-          ...editingChar.features,
-          avatarType: 'image',
-          avatarImage: base64Image
-        }
-      });
+    reader.onload = (event) => {
+      setUploadedImage(event.target.result);
+      setShowImageCropper(true);
     };
     reader.readAsDataURL(file);
-    event.target.value = '';
+  };
+
+  const handleImageCrop = (croppedImage) => {
+    setEditingChar({
+      ...editingChar,
+      features: {
+        ...editingChar.features,
+        avatarType: 'image',
+        avatarImage: croppedImage
+      }
+    });
+    setShowImageCropper(false);
+    setUploadedImage(null);
   };
 
   return (
@@ -2741,52 +2813,105 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
                 </div>
 
                 {editingChar.features.avatarType === 'emoji' ? (
-                  <input
-                    type="text"
-                    value={editingChar.features.avatar}
-                    onChange={(e) => setEditingChar({
-                      ...editingChar,
-                      features: {...editingChar.features, avatar: e.target.value}
-                    })}
-                    className="w-full px-3 py-2 border rounded-lg text-2xl"
-                    maxLength={2}
-                    placeholder="絵文字を入力"
-                    disabled={isDerived && !editingChar.overrides.avatar}
-                  />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">絵文字</label>
+                    <div className="flex items-center gap-2">
+                      <div className="flex-1 flex items-center justify-center bg-white border-2 border-gray-300 rounded-lg p-4">
+                        <span className="text-5xl">{editingChar.features.avatar || '😊'}</span>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setShowEmojiPicker(true);
+                        }}
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                        disabled={isDerived && !editingChar.overrides.avatar}
+                      >
+                        変更
+                      </button>
+                    </div>
+                  </div>
                 ) : (
-                  <div className="space-y-2">
-                    {editingChar.features.avatarImage && (
-                      <div className="flex items-center gap-3">
-                        <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-100">
-                          <img
-                            src={editingChar.features.avatarImage}
-                            alt="Avatar preview"
-                            className="w-full h-full object-cover"
-                          />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">画像</label>
+
+                    {editingChar.features.avatarImage ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 flex items-center justify-center bg-white border-2 border-gray-300 rounded-lg p-4">
+                            <img
+                              src={editingChar.features.avatarImage}
+                              alt="avatar"
+                              className="w-24 h-24 rounded-full object-cover"
+                            />
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                avatarImageInputRef.current?.click();
+                              }}
+                              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 whitespace-nowrap"
+                              disabled={isDerived && !editingChar.overrides.avatar}
+                            >
+                              変更
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingChar({
+                                  ...editingChar,
+                                  features: {...editingChar.features, avatarImage: null}
+                                });
+                              }}
+                              className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 whitespace-nowrap"
+                              disabled={isDerived && !editingChar.overrides.avatar}
+                            >
+                              削除
+                            </button>
+                          </div>
                         </div>
-                        <button
-                          onClick={() => setEditingChar({
-                            ...editingChar,
-                            features: {...editingChar.features, avatarImage: null}
-                          })}
-                          className="text-red-600 hover:text-red-700 text-sm"
-                          disabled={isDerived && !editingChar.overrides.avatar}
-                        >
-                          <Trash2 size={14} className="inline mr-1" />
-                          削除
-                        </button>
+                      </div>
+                    ) : (
+                      <div
+                        onDragOver={handleDragOver}
+                        onDragEnter={handleDragEnter}
+                        onDragLeave={handleDragLeave}
+                        onDrop={handleDrop}
+                        className={`relative border-2 border-dashed rounded-lg p-8 transition-colors ${
+                          isDragging
+                            ? 'border-indigo-500 bg-indigo-50'
+                            : 'border-gray-300 bg-white hover:border-gray-400'
+                        } ${(isDerived && !editingChar.overrides.avatar) ? 'opacity-50 pointer-events-none' : ''}`}
+                      >
+                        <div className="flex flex-col items-center justify-center gap-3">
+                          <div className="text-4xl">
+                            {isDragging ? '📥' : '🖼️'}
+                          </div>
+                          <div className="text-center">
+                            <p className="text-sm font-medium text-gray-700 mb-1">
+                              {isDragging ? '画像をドロップ' : '画像をドラッグ＆ドロップ'}
+                            </p>
+                            <p className="text-xs text-gray-500 mb-3">または</p>
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                avatarImageInputRef.current?.click();
+                              }}
+                              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium"
+                              disabled={isDerived && !editingChar.overrides.avatar}
+                            >
+                              ファイルを選択
+                            </button>
+                          </div>
+                        </div>
                       </div>
                     )}
-                    <button
-                      onClick={() => avatarImageInputRef.current?.click()}
-                      className="w-full px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition text-sm flex items-center justify-center gap-2"
-                      disabled={isDerived && !editingChar.overrides.avatar}
-                    >
-                      <Upload size={16} />
-                      {editingChar.features.avatarImage ? '画像を変更' : '画像をアップロード'}
-                    </button>
-                    <p className="text-xs text-gray-500">
-                      JPG, PNG, GIF対応（最大2MB）
+
+                    <p className="text-xs text-gray-500 mt-2">
+                      💡 画像をアップロード後、円形にクロップできます（PNG, JPG, GIF対応）
                     </p>
                   </div>
                 )}
@@ -3004,12 +3129,36 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
       </div>
       
       {characterFileInputRef && (
-        <input 
-          ref={characterFileInputRef} 
-          type="file" 
-          accept=".json" 
-          onChange={importCharacter} 
-          className="hidden" 
+        <input
+          ref={characterFileInputRef}
+          type="file"
+          accept=".json"
+          onChange={importCharacter}
+          className="hidden"
+        />
+      )}
+
+      {showEmojiPicker && (
+        <EmojiPicker
+          onSelect={(emoji) => {
+            setEditingChar({
+              ...editingChar,
+              features: {...editingChar.features, avatar: emoji}
+            });
+            setShowEmojiPicker(false);
+          }}
+          onClose={() => setShowEmojiPicker(false)}
+        />
+      )}
+
+      {showImageCropper && uploadedImage && (
+        <ImageCropper
+          imageSrc={uploadedImage}
+          onCrop={handleImageCrop}
+          onCancel={() => {
+            setShowImageCropper(false);
+            setUploadedImage(null);
+          }}
         />
       )}
     </div>
@@ -3017,6 +3166,331 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
 };
 
 // Confirmation Dialog Component
+// Emoji Picker Component
+const EmojiPicker = ({ onSelect, onClose }) => {
+  const [activeCategory, setActiveCategory] = useState('smileys');
+
+  const emojiCategories = {
+    smileys: {
+      name: '😊 顔',
+      emojis: ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙', '🥲', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '😶‍🌫️', '🥴', '😵', '🤯', '🤠', '🥳', '😎', '🤓', '🧐']
+    },
+    animals: {
+      name: '🐶 動物',
+      emojis: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🐛', '🦋', '🐌', '🐞', '🐜', '🦟', '🦗', '🕷️', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈', '🐈‍⬛', '🐓', '🦃', '🦚', '🦜', '🦢', '🦩', '🕊️', '🐇', '🦝', '🦨', '🦡', '🦦', '🦥', '🐁', '🐀', '🐿️', '🦔']
+    },
+    food: {
+      name: '🍕 食べ物',
+      emojis: ['🍎', '🍏', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌶️', '🫑', '🌽', '🥕', '🫒', '🧄', '🧅', '🥔', '🍠', '🥐', '🥯', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', '🧈', '🥞', '🧇', '🥓', '🥩', '🍗', '🍖', '🦴', '🌭', '🍔', '🍟', '🍕', '🫓', '🥪', '🥙', '🧆', '🌮', '🌯', '🫔', '🥗', '🥘', '🫕', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🥮', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪', '🌰', '🥜', '🍯']
+    },
+    activities: {
+      name: '⚽ 活動',
+      emojis: ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🥅', '⛳', '🪁', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛼', '🛷', '⛸️', '🥌', '🎿', '⛷️', '🏂', '🪂', '🏋️', '🤼', '🤸', '🤺', '🤾', '🏌️', '🏇', '🧘', '🏊', '🚣', '🧗', '🚵', '🚴', '🏎️', '🏍️', '🤹', '🎭', '🩰', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🪕', '🎻', '🎲', '♟️', '🎯', '🎳', '🎮', '🎰', '🧩']
+    },
+    travel: {
+      name: '✈️ 旅行',
+      emojis: ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🦯', '🦽', '🦼', '🛴', '🚲', '🛵', '🏍️', '🛺', '🚨', '🚔', '🚍', '🚘', '🚖', '🚡', '🚠', '🚟', '🚃', '🚋', '🚞', '🚝', '🚄', '🚅', '🚈', '🚂', '🚆', '🚇', '🚊', '🚉', '✈️', '🛫', '🛬', '🛩️', '💺', '🛰️', '🚀', '🛸', '🚁', '🛶', '⛵', '🚤', '🛥️', '🛳️', '⛴️', '🚢', '⚓', '⛽', '🚧', '🚦', '🚥', '🗺️', '🗿', '🗽', '🗼', '🏰', '🏯', '🏟️', '🎡', '🎢', '🎠', '⛲', '⛱️', '🏖️', '🏝️', '🏜️', '🌋', '⛰️', '🏔️', '🗻', '🏕️', '⛺', '🏠', '🏡', '🏘️', '🏚️', '🏗️', '🏭', '🏢', '🏬', '🏣', '🏤', '🏥', '🏦', '🏨', '🏪', '🏫', '🏩', '💒', '🏛️', '⛪', '🕌', '🛕', '🕍', '⛩️', '🕋']
+    },
+    objects: {
+      name: '📱 物',
+      emojis: ['⌚', '📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '🕹️', '🗜️', '💾', '💿', '📀', '📼', '📷', '📸', '📹', '🎥', '📽️', '🎞️', '📞', '☎️', '📟', '📠', '📺', '📻', '🎙️', '🎚️', '🎛️', '🧭', '⏱️', '⏲️', '⏰', '🕰️', '⌛', '⏳', '📡', '🔋', '🔌', '💡', '🔦', '🕯️', '🪔', '🧯', '🛢️', '💸', '💵', '💴', '💶', '💷', '🪙', '💰', '💳', '🪪', '💎', '⚖️', '🪜', '🧰', '🪛', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🪚', '🔩', '⚙️', '🪤', '🧱', '⛓️', '🧲', '🔫', '💣', '🧨', '🪓', '🔪', '🗡️', '⚔️', '🛡️', '🚬', '⚰️', '🪦', '⚱️', '🏺', '🔮', '📿', '🧿', '💈', '⚗️', '🔭', '🔬', '🕳️', '🩹', '🩺', '💊', '💉', '🩸', '🧬', '🦠', '🧫', '🧪', '🌡️', '🧹', '🪠', '🧺', '🧻', '🚽', '🚰', '🚿', '🛁', '🛀', '🧼', '🪥', '🪒', '🧽', '🪣', '🧴', '🛎️', '🔑', '🗝️', '🚪', '🪑', '🛋️', '🛏️', '🛌', '🧸', '🪆', '🖼️', '🪞', '🪟', '🛍️', '🎁', '🎈', '🎏', '🎀', '🪄', '🪅', '🎊', '🎉', '🎎', '🏮', '🎐', '🧧', '✉️', '📩', '📨', '📧', '💌', '📥', '📤', '📦', '🏷️', '🪧', '📪', '📫', '📬', '📭', '📮', '📯', '📜', '📃', '📄', '📑', '🧾', '📊', '📈', '📉', '🗒️', '🗓️', '📆', '📅', '🗑️', '📇', '🗃️', '🗳️', '🗄️', '📋', '📁', '📂', '🗂️', '🗞️', '📰', '📓', '📔', '📒', '📕', '📗', '📘', '📙', '📚', '📖', '🔖', '🧷', '🔗', '📎', '🖇️', '📐', '📏', '🧮', '📌', '📍', '✂️', '🖊️', '🖋️', '✒️', '🖌️', '🖍️', '📝', '✏️', '🔍', '🔎', '🔏', '🔐', '🔒', '🔓']
+    },
+    symbols: {
+      name: '❤️ 記号',
+      emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❤️‍🔥', '❤️‍🩹', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺', '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️', '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️', '🅱️', '🆎', '🆑', '🅾️', '🆘', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '💯', '💢', '♨️', '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗', '❕', '❓', '❔', '‼️', '⁉️', '🔅', '🔆', '〽️', '⚠️', '🚸', '🔱', '⚜️', '🔰', '♻️', '✅', '🈯', '💹', '❇️', '✳️', '❎', '🌐', '💠', 'Ⓜ️', '🌀', '💤', '🏧', '🚾', '♿', '🅿️', '🛗', '🈳', '🈂️', '🛂', '🛃', '🛄', '🛅', '🚹', '🚺', '🚼', '⚧️', '🚻', '🚮', '🎦', '📶', '🈁', '🔣', 'ℹ️', '🔤', '🔡', '🔠', '🆖', '🆗', '🆙', '🆒', '🆕', '🆓', '0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '🔢', '#️⃣', '*️⃣', '⏏️', '▶️', '⏸️', '⏯️', '⏹️', '⏺️', '⏭️', '⏮️', '⏩', '⏪', '⏫', '⏬', '◀️', '🔼', '🔽', '➡️', '⬅️', '⬆️', '⬇️', '↗️', '↘️', '↙️', '↖️', '↕️', '↔️', '↪️', '↩️', '⤴️', '⤵️', '🔀', '🔁', '🔂', '🔄', '🔃', '🎵', '🎶', '➕', '➖', '➗', '✖️', '🟰', '♾️', '💲', '💱', '™️', '©️', '®️', '〰️', '➰', '➿', '🔚', '🔙', '🔛', '🔝', '🔜', '✔️', '☑️', '🔘', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🟤', '🔺', '🔻', '🔸', '🔹', '🔶', '🔷', '🔳', '🔲', '▪️', '▫️', '◾', '◽', '◼️', '◻️', '🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '⬛', '⬜', '🟫', '🔈', '🔇', '🔉', '🔊', '🔔', '🔕', '📣', '📢', '👁️‍🗨️', '💬', '💭', '🗯️', '♠️', '♣️', '♥️', '♦️', '🃏', '🎴', '🀄', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚', '🕛', '🕜', '🕝', '🕞', '🕟', '🕠', '🕡', '🕢', '🕣', '🕤', '🕥', '🕦', '🕧']
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl w-full max-w-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="text-lg font-bold text-gray-800">絵文字を選択</h3>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
+            className="p-2 hover:bg-gray-100 rounded-lg"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex border-b overflow-x-auto">
+          {Object.entries(emojiCategories).map(([key, category]) => (
+            <button
+              key={key}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setActiveCategory(key);
+              }}
+              className={`px-4 py-2 text-sm whitespace-nowrap ${
+                activeCategory === key
+                  ? 'border-b-2 border-purple-600 text-purple-600 font-medium'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {category.name}
+            </button>
+          ))}
+        </div>
+
+        <div className="p-4 h-80 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="grid grid-cols-8 gap-2">
+            {emojiCategories[activeCategory].emojis.map((emoji, index) => (
+              <button
+                key={index}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onSelect(emoji);
+                  onClose();
+                }}
+                className="text-3xl p-2 hover:bg-gray-100 rounded-lg transition"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Image Cropper Component
+const ImageCropper = ({ imageSrc, onCrop, onCancel }) => {
+  const canvasRef = useRef(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const imageRef = useRef(null);
+
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      setImageSize({ width: img.width, height: img.height });
+      imageRef.current = img;
+      drawCanvas();
+    };
+    img.src = imageSrc;
+  }, [imageSrc]);
+
+  useEffect(() => {
+    drawCanvas();
+  }, [crop, zoom, imageSize]);
+
+  const drawCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !imageRef.current) return;
+
+    const ctx = canvas.getContext('2d');
+    const canvasSize = 400;
+    canvas.width = canvasSize;
+    canvas.height = canvasSize;
+
+    // Clear canvas
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvasSize, canvasSize);
+
+    // Calculate image dimensions
+    const scale = zoom;
+    const imgWidth = imageSize.width * scale;
+    const imgHeight = imageSize.height * scale;
+
+    // Draw image
+    ctx.drawImage(
+      imageRef.current,
+      crop.x,
+      crop.y,
+      imgWidth,
+      imgHeight
+    );
+
+    // Draw crop circle overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(0, 0, canvasSize, canvasSize);
+
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.arc(canvasSize / 2, canvasSize / 2, 150, 0, 2 * Math.PI);
+    ctx.fill();
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(canvasSize / 2, canvasSize / 2, 150, 0, 2 * Math.PI);
+    ctx.stroke();
+  };
+
+  const handleMouseDown = (e) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - crop.x, y: e.clientY - crop.y });
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging) return;
+    setCrop({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  };
+
+  const handleMouseUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleCrop = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !imageRef.current) return;
+
+    // Create output canvas
+    const outputCanvas = document.createElement('canvas');
+    const outputSize = 300;
+    outputCanvas.width = outputSize;
+    outputCanvas.height = outputSize;
+    const outputCtx = outputCanvas.getContext('2d');
+
+    // Calculate crop area
+    const canvasSize = 400;
+    const cropRadius = 150;
+    const centerX = canvasSize / 2;
+    const centerY = canvasSize / 2;
+
+    const scale = zoom;
+    const imgWidth = imageSize.width * scale;
+    const imgHeight = imageSize.height * scale;
+
+    // Calculate source crop coordinates
+    const sourceX = (centerX - cropRadius - crop.x) / scale;
+    const sourceY = (centerY - cropRadius - crop.y) / scale;
+    const sourceSize = (cropRadius * 2) / scale;
+
+    // Draw cropped circle
+    outputCtx.beginPath();
+    outputCtx.arc(outputSize / 2, outputSize / 2, outputSize / 2, 0, 2 * Math.PI);
+    outputCtx.clip();
+
+    outputCtx.drawImage(
+      imageRef.current,
+      sourceX,
+      sourceY,
+      sourceSize,
+      sourceSize,
+      0,
+      0,
+      outputSize,
+      outputSize
+    );
+
+    const croppedImage = outputCanvas.toDataURL('image/png');
+    onCrop(croppedImage);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onCancel();
+        }
+      }}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl w-full max-w-md"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="text-lg font-bold text-gray-800">画像をクロップ</h3>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onCancel();
+            }}
+            className="p-2 hover:bg-gray-100 rounded-lg"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4" onClick={(e) => e.stopPropagation()}>
+          <div className="relative">
+            <canvas
+              ref={canvasRef}
+              width={400}
+              height={400}
+              className="w-full h-auto border border-gray-300 rounded-lg cursor-move"
+              onMouseDown={handleMouseDown}
+              onMouseMove={handleMouseMove}
+              onMouseUp={handleMouseUp}
+              onMouseLeave={handleMouseUp}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              ズーム: {zoom.toFixed(1)}x
+            </label>
+            <input
+              type="range"
+              min="0.5"
+              max="3"
+              step="0.1"
+              value={zoom}
+              onChange={(e) => setZoom(parseFloat(e.target.value))}
+              className="w-full"
+            />
+          </div>
+
+          <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded">
+            💡 画像をドラッグして位置を調整し、スライダーでズームできます
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleCrop();
+              }}
+              className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium"
+            >
+              クロップ
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onCancel();
+              }}
+              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+            >
+              キャンセル
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 const ConfirmDialog = ({ title, message, onConfirm, onCancel }) => {
   return (
     <div
