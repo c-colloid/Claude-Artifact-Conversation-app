@@ -1604,17 +1604,6 @@ const MultiCharacterChat = () => {
     };
 
     initializeData();
-
-    // Service Worker 登録（パフォーマンス改善、オフライン対応）
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js')
-        .then((registration) => {
-          console.log('[App] Service Worker registered successfully:', registration.scope);
-        })
-        .catch((error) => {
-          console.error('[App] Service Worker registration failed:', error);
-        });
-    }
   }, []);
 
   /**
