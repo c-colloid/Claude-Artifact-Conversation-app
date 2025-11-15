@@ -18,7 +18,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { AlertCircle, Trash2, Edit2, RotateCcw, Send, Plus, Eye, EyeOff, Settings, Menu, X, Hash, RefreshCw, Save, HardDrive, User, Heart, Download, Upload, ChevronDown, ChevronRight, Layers, Copy, MessageSquare, Check, Users, BookOpen, FileText } from 'lucide-react';
+import { AlertCircle, Trash2, Edit2, RotateCcw, Send, Plus, Eye, EyeOff, Settings, Menu, X, Hash, RefreshCw, Save, HardDrive, User, Heart, Download, Upload, ChevronDown, ChevronRight, Layers, Copy, MessageSquare, Check, Users, BookOpen, FileText, Image } from 'lucide-react';
 
 /**
  * デバウンス関数
@@ -72,7 +72,7 @@ const compressImage = async (file, maxSize = 200, quality = 0.7) => {
     const reader = new FileReader();
 
     reader.onload = (e) => {
-      const img = new Image();
+      const img = new window.Image();
 
       img.onload = () => {
         const canvas = document.createElement('canvas');
@@ -3199,7 +3199,8 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
                     }`}
                     disabled={isDerived && !editingChar.overrides.avatar}
                   >
-                    🖼️ 画像
+                    <Image size={14} className="inline mr-1" />
+                    画像
                   </button>
                 </div>
 
@@ -3673,7 +3674,7 @@ const ImageCropper = ({ imageSrc, onCrop, onCancel }) => {
   const imageRef = useRef(null);
 
   useEffect(() => {
-    const img = new Image();
+    const img = new window.Image();
     img.onload = () => {
       setImageSize({ width: img.width, height: img.height });
       imageRef.current = img;
