@@ -1293,7 +1293,7 @@ const MultiCharacterChat = () => {
 
     await generateResponse(newHistory, true, null, nextSpeaker);
     setNextSpeaker(null); // Reset next speaker after use
-  }, [userPrompt, currentConversationId, messageType, nextSpeaker, getCurrentMessages, updateConversation]);
+  }, [userPrompt, currentConversationId, messageType, nextSpeaker, getCurrentMessages, updateConversation, generateResponse]);
 
   /**
    * メッセージ編集開始（useCallbackでメモ化）
@@ -1368,7 +1368,7 @@ const MultiCharacterChat = () => {
 
     setRegeneratePrefill('');
     setShowRegeneratePrefill(null);
-  }, [getCurrentMessages, currentConversationId, updateConversation, regeneratePrefill]);
+  }, [getCurrentMessages, currentConversationId, updateConversation, regeneratePrefill, generateResponse]);
 
   const fetchModels = async () => {
     setIsLoadingModels(true);
