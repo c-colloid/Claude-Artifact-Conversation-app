@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { AlertCircle, Trash2, Edit2, RotateCcw, Send, Plus, Eye, EyeOff, Settings, Menu, X, Hash, RefreshCw, Save, HardDrive, User, Heart, Download, Upload, ChevronDown, ChevronRight, Layers, Copy, MessageSquare, Check, Users, BookOpen, FileText } from 'lucide-react';
+import { AlertCircle, Trash2, Edit2, RotateCcw, Send, Plus, Eye, EyeOff, Settings, Menu, X, Hash, RefreshCw, Save, HardDrive, User, Heart, Download, Upload, ChevronDown, ChevronRight, Layers, Copy, MessageSquare, Check, Users, BookOpen, FileText, Image } from 'lucide-react';
 
 const MultiCharacterChat = () => {
   // Initialization state
@@ -7,6 +7,7 @@ const MultiCharacterChat = () => {
 
   // Characters state
   const [characters, setCharacters] = useState([]);
+  const [characterGroups, setCharacterGroups] = useState([]);
   const [showCharacterModal, setShowCharacterModal] = useState(false);
 
   // Conversation state
@@ -35,6 +36,8 @@ const MultiCharacterChat = () => {
   const [editingContent, setEditingContent] = useState('');
   const [regeneratePrefill, setRegeneratePrefill] = useState('');
   const [showRegeneratePrefill, setShowRegeneratePrefill] = useState(null);
+  const [editingConversationTitle, setEditingConversationTitle] = useState(null);
+  const [editingTitleText, setEditingTitleText] = useState('');
 
   // Stats
   const [usageStats, setUsageStats] = useState({
@@ -52,7 +55,7 @@ const MultiCharacterChat = () => {
   // UI state
   const [showSettings, setShowSettings] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
-  const [sidebarView, setSidebarView] = useState('conversations');
+  const [sidebarView, setSidebarView] = useState('conversations'); // 'conversations', 'history', 'stats'
   const [showConversationSettings, setShowConversationSettings] = useState(false);
 
   // Confirmation dialog state
@@ -122,13 +125,16 @@ const MultiCharacterChat = () => {
   const getDefaultCharacter = () => ({
     id: generateId(),
     name: '新しいキャラクター',
+    baseCharacterId: null, // For derived characters
+    overrides: {}, // Which properties are overridden from base
     definition: {
       personality: 'フレンドリーで親切',
       speakingStyle: '丁寧な口調',
       firstPerson: '私',
       secondPerson: 'あなた',
       background: '',
-      catchphrases: []
+      catchphrases: [],
+      customPrompt: ''
     },
     features: {
       emotionEnabled: true,
@@ -137,7 +143,9 @@ const MultiCharacterChat = () => {
       autoManageAffection: true,
       currentEmotion: 'neutral',
       affectionLevel: 50,
-      avatar: '😊'
+      avatar: '😊',
+      avatarType: 'emoji', // 'emoji' or 'image'
+      avatarImage: null // base64 encoded image data
     },
     created: new Date().toISOString(),
     updated: new Date().toISOString()
@@ -149,6 +157,10 @@ const MultiCharacterChat = () => {
     participantIds: [], // Array of character IDs
     backgroundInfo: '', // Situation, relationships, etc.
     narrationEnabled: true,
+    autoGenerateNarration: false, // AI automatically generates narration
+    relationships: [], // Array of {char1Id, char2Id, type, description}
+    parentConversationId: null, // For forked conversations
+    forkPoint: null, // Message index where this was forked
     messages: [],
     created: new Date().toISOString(),
     updated: new Date().toISOString()
@@ -165,6 +177,51 @@ const MultiCharacterChat = () => {
 
   const getCharacterById = (id) => {
     return characters.find(c => c.id === id);
+  };
+
+  // Get effective character with base properties merged
+  const getEffectiveCharacter = (character) => {
+    if (!character) return null;
+
+    // If no base, return as-is
+    if (!character.baseCharacterId) {
+      return character;
+    }
+
+    // Get base character
+    const baseChar = getCharacterById(character.baseCharacterId);
+    if (!baseChar) {
+      // Base not found, return as-is
+      return character;
+    }
+
+    // Get effective base (recursive for multi-level inheritance)
+    const effectiveBase = getEffectiveCharacter(baseChar);
+
+    // Merge properties
+    const merged = {
+      ...character,
+      definition: {
+        personality: character.overrides.personality ? character.definition.personality : effectiveBase.definition.personality,
+        speakingStyle: character.overrides.speakingStyle ? character.definition.speakingStyle : effectiveBase.definition.speakingStyle,
+        firstPerson: character.overrides.firstPerson ? character.definition.firstPerson : effectiveBase.definition.firstPerson,
+        secondPerson: character.overrides.secondPerson ? character.definition.secondPerson : effectiveBase.definition.secondPerson,
+        background: character.overrides.background ? character.definition.background : effectiveBase.definition.background,
+        catchphrases: character.overrides.catchphrases ? character.definition.catchphrases : effectiveBase.definition.catchphrases,
+        customPrompt: character.overrides.customPrompt ? character.definition.customPrompt : effectiveBase.definition.customPrompt
+      },
+      features: {
+        emotionEnabled: character.overrides.emotionEnabled !== undefined ? character.features.emotionEnabled : effectiveBase.features.emotionEnabled,
+        affectionEnabled: character.overrides.affectionEnabled !== undefined ? character.features.affectionEnabled : effectiveBase.features.affectionEnabled,
+        autoManageEmotion: character.overrides.autoManageEmotion !== undefined ? character.features.autoManageEmotion : effectiveBase.features.autoManageEmotion,
+        autoManageAffection: character.overrides.autoManageAffection !== undefined ? character.features.autoManageAffection : effectiveBase.features.autoManageAffection,
+        currentEmotion: character.overrides.currentEmotion ? character.features.currentEmotion : effectiveBase.features.currentEmotion,
+        affectionLevel: character.overrides.affectionLevel !== undefined ? character.features.affectionLevel : effectiveBase.features.affectionLevel,
+        avatar: character.overrides.avatar ? character.features.avatar : effectiveBase.features.avatar
+      }
+    };
+
+    return merged;
   };
 
   const parseMultiCharacterResponse = (responseText, conversation, thinkingContent) => {
@@ -321,6 +378,7 @@ const MultiCharacterChat = () => {
 
     const participants = conversation.participantIds
       .map(id => getCharacterById(id))
+      .map(c => getEffectiveCharacter(c)) // Apply inheritance
       .filter(c => c);
 
     if (participants.length === 0) return '';
@@ -346,11 +404,30 @@ const MultiCharacterChat = () => {
       if (feat.affectionEnabled) {
         prompt += `- 現在の好感度: ${feat.affectionLevel}/100\n`;
       }
+      if (def.customPrompt) {
+        prompt += `\n### 追加設定\n${def.customPrompt}\n`;
+      }
       prompt += `\n`;
     });
 
     if (conversation.backgroundInfo) {
       prompt += `## 背景情報・シチュエーション\n${conversation.backgroundInfo}\n\n`;
+    }
+
+    if (conversation.relationships && conversation.relationships.length > 0) {
+      prompt += `## キャラクター間の関係性\n`;
+      conversation.relationships.forEach((rel) => {
+        const char1 = participants.find(c => c.id === rel.char1Id);
+        const char2 = participants.find(c => c.id === rel.char2Id);
+        if (char1 && char2) {
+          prompt += `- ${char1.name} と ${char2.name}: ${rel.type}`;
+          if (rel.description) {
+            prompt += ` (${rel.description})`;
+          }
+          prompt += `\n`;
+        }
+      });
+      prompt += `\n`;
     }
 
     prompt += `## 重要な指示\n`;
@@ -387,7 +464,15 @@ const MultiCharacterChat = () => {
     
     if (conversation.narrationEnabled) {
       const narrationNum = hasAutoEmotion && hasAutoAffection ? 7 : hasAutoEmotion || hasAutoAffection ? 6 : 5;
-      prompt += `${narrationNum}. 必要に応じて [NARRATION] タグで地の文(情景描写、行動描写)を追加できます\n`;
+      if (conversation.autoGenerateNarration) {
+        prompt += `${narrationNum}. **地の文を自動生成**: 会話の合間に [NARRATION] タグで地の文を積極的に挿入してください\n`;
+        prompt += `   - 情景描写: 周囲の環境、天気、雰囲気など\n`;
+        prompt += `   - 行動描写: キャラクターの動作、表情、仕草など\n`;
+        prompt += `   - 心理描写: キャラクターの内面、思考など\n`;
+        prompt += `   - 複数のキャラクター発言の合間に自然に挿入してください\n`;
+      } else {
+        prompt += `${narrationNum}. 必要に応じて [NARRATION] タグで地の文(情景描写、行動描写)を追加できます\n`;
+      }
     }
 
     prompt += `\n例:\n`;
@@ -402,6 +487,28 @@ const MultiCharacterChat = () => {
     setConversations(prev => [...prev, newConv]);
     setCurrentConversationId(newConv.id);
     return newConv.id;
+  };
+
+  const forkConversation = (conversationId, messageIndex) => {
+    const originalConv = conversations.find(c => c.id === conversationId);
+    if (!originalConv) return;
+
+    const forkedConv = {
+      ...getDefaultConversation(),
+      title: `${originalConv.title}（分岐${messageIndex + 1}）`,
+      participantIds: [...originalConv.participantIds],
+      backgroundInfo: originalConv.backgroundInfo,
+      narrationEnabled: originalConv.narrationEnabled,
+      autoGenerateNarration: originalConv.autoGenerateNarration,
+      relationships: originalConv.relationships ? [...originalConv.relationships] : [],
+      parentConversationId: conversationId,
+      forkPoint: messageIndex,
+      messages: originalConv.messages.slice(0, messageIndex + 1)
+    };
+
+    setConversations(prev => [...prev, forkedConv]);
+    setCurrentConversationId(forkedConv.id);
+    return forkedConv.id;
   };
 
   const deleteConversation = (conversationId) => {
@@ -425,6 +532,75 @@ const MultiCharacterChat = () => {
       },
       onCancel: () => setConfirmDialog(null)
     });
+  };
+
+  // Character Group Management
+  const createCharacterGroup = (name, characterIds) => {
+    const newGroup = {
+      id: generateId(),
+      name,
+      characterIds,
+      created: new Date().toISOString()
+    };
+    setCharacterGroups(prev => [...prev, newGroup]);
+    return newGroup.id;
+  };
+
+  const updateCharacterGroup = (groupId, updates) => {
+    setCharacterGroups(prev =>
+      prev.map(group => group.id === groupId ? { ...group, ...updates } : group)
+    );
+  };
+
+  const deleteCharacterGroup = (groupId) => {
+    setCharacterGroups(prev => prev.filter(g => g.id !== groupId));
+  };
+
+  const applyCharacterGroup = (groupId) => {
+    const group = characterGroups.find(g => g.id === groupId);
+    if (!group || !currentConversationId) return;
+
+    // Add all characters from the group to the current conversation
+    const currentConv = getCurrentConversation();
+    if (!currentConv) return;
+
+    const newParticipantIds = [...new Set([...currentConv.participantIds, ...group.characterIds])];
+    updateConversation(currentConversationId, {
+      participantIds: newParticipantIds
+    });
+  };
+
+  // Stats calculation
+  const getConversationStats = () => {
+    const currentConv = getCurrentConversation();
+    if (!currentConv) return null;
+
+    const stats = {
+      totalMessages: currentConv.messages.length,
+      userMessages: 0,
+      characterMessages: {},
+      narrationCount: 0,
+      characterAffection: {}
+    };
+
+    currentConv.messages.forEach(msg => {
+      if (msg.type === 'user') {
+        stats.userMessages++;
+      } else if (msg.type === 'narration') {
+        stats.narrationCount++;
+      } else if (msg.type === 'character' && msg.characterId) {
+        stats.characterMessages[msg.characterId] = (stats.characterMessages[msg.characterId] || 0) + 1;
+
+        if (msg.affection !== undefined) {
+          if (!stats.characterAffection[msg.characterId]) {
+            stats.characterAffection[msg.characterId] = [];
+          }
+          stats.characterAffection[msg.characterId].push(msg.affection);
+        }
+      }
+    });
+
+    return stats;
   };
 
   const exportConversation = (conversationId) => {
@@ -764,6 +940,11 @@ const MultiCharacterChat = () => {
     });
   };
 
+  const handleFork = (index) => {
+    if (!currentConversationId) return;
+    forkConversation(currentConversationId, index);
+  };
+
   const handleRegenerateFrom = async (index) => {
     const currentMessages = getCurrentMessages();
     const historyUpToPoint = currentMessages.slice(0, index);
@@ -835,6 +1016,7 @@ const MultiCharacterChat = () => {
     try {
       const saveData = {
         characters,
+        characterGroups,
         conversations,
         currentConversationId,
         selectedModel,
@@ -867,8 +1049,15 @@ const MultiCharacterChat = () => {
           // Migrate characters to add missing features
           const migratedCharacters = data.characters.map(char => {
             const features = char.features || {};
+            const definition = char.definition || {};
             return {
               ...char,
+              baseCharacterId: char.baseCharacterId || null,
+              overrides: char.overrides || {},
+              definition: {
+                ...definition,
+                customPrompt: definition.customPrompt || ''
+              },
               features: {
                 emotionEnabled: features.emotionEnabled !== undefined ? features.emotionEnabled : true,
                 affectionEnabled: features.affectionEnabled !== undefined ? features.affectionEnabled : false,
@@ -876,19 +1065,29 @@ const MultiCharacterChat = () => {
                 autoManageAffection: features.autoManageAffection !== undefined ? features.autoManageAffection : true,
                 currentEmotion: features.currentEmotion || 'neutral',
                 affectionLevel: features.affectionLevel !== undefined ? features.affectionLevel : 50,
-                avatar: features.avatar || '😊'
+                avatar: features.avatar || '😊',
+                avatarType: features.avatarType || 'emoji',
+                avatarImage: features.avatarImage || null
               }
             };
           });
           setCharacters(migratedCharacters);
         }
-        
+
+        if (data.characterGroups && data.characterGroups.length > 0) {
+          setCharacterGroups(data.characterGroups);
+        }
+
         if (data.conversations && data.conversations.length > 0) {
           // Migrate conversations to add missing fields
           const migratedConversations = data.conversations.map(conv => ({
             ...conv,
             narrationEnabled: conv.narrationEnabled !== undefined ? conv.narrationEnabled : true,
-            backgroundInfo: conv.backgroundInfo || ''
+            autoGenerateNarration: conv.autoGenerateNarration || false,
+            backgroundInfo: conv.backgroundInfo || '',
+            relationships: conv.relationships || [],
+            parentConversationId: conv.parentConversationId || null,
+            forkPoint: conv.forkPoint || null
           }));
           setConversations(migratedConversations);
         }
@@ -1204,8 +1403,8 @@ const MultiCharacterChat = () => {
             <button
               onClick={() => setSidebarView('conversations')}
               className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition ${
-                sidebarView === 'conversations' 
-                  ? 'bg-indigo-600 text-white' 
+                sidebarView === 'conversations'
+                  ? 'bg-indigo-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
@@ -1215,14 +1414,26 @@ const MultiCharacterChat = () => {
             <button
               onClick={() => setSidebarView('messages')}
               className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition ${
-                sidebarView === 'messages' 
-                  ? 'bg-indigo-600 text-white' 
+                sidebarView === 'messages'
+                  ? 'bg-indigo-600 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
               disabled={!currentConversation}
             >
               <Hash size={12} className="inline mr-1" />
               履歴
+            </button>
+            <button
+              onClick={() => setSidebarView('stats')}
+              className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition ${
+                sidebarView === 'stats'
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+              disabled={!currentConversation}
+            >
+              <BookOpen size={12} className="inline mr-1" />
+              統計
             </button>
           </div>
 
@@ -1263,7 +1474,30 @@ const MultiCharacterChat = () => {
                           >
                             <div className="flex items-center gap-2 mb-1">
                               {isActive && <Check size={12} className="text-indigo-600 flex-shrink-0" />}
-                              <span className="font-semibold text-sm truncate">{conv.title}</span>
+                              {editingConversationTitle === conv.id ? (
+                                <input
+                                  type="text"
+                                  value={editingTitleText}
+                                  onChange={(e) => setEditingTitleText(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      updateConversation(conv.id, { title: editingTitleText });
+                                      setEditingConversationTitle(null);
+                                    } else if (e.key === 'Escape') {
+                                      setEditingConversationTitle(null);
+                                    }
+                                  }}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onBlur={() => {
+                                    updateConversation(conv.id, { title: editingTitleText });
+                                    setEditingConversationTitle(null);
+                                  }}
+                                  autoFocus
+                                  className="flex-1 px-2 py-0.5 text-sm font-semibold border border-indigo-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                                />
+                              ) : (
+                                <span className="font-semibold text-sm truncate">{conv.title}</span>
+                              )}
                             </div>
                             <div className="flex items-center justify-between text-xs text-gray-500">
                               <span>{conv.messages.length}件</span>
@@ -1274,6 +1508,17 @@ const MultiCharacterChat = () => {
                             </div>
                           </button>
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition flex-shrink-0">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingConversationTitle(conv.id);
+                                setEditingTitleText(conv.title);
+                              }}
+                              className="p-1 hover:bg-blue-100 rounded"
+                              title="タイトル編集"
+                            >
+                              <Edit2 size={12} className="text-blue-600" />
+                            </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -1338,7 +1583,7 @@ const MultiCharacterChat = () => {
                           <><FileText size={12} /> #{idx + 1} 地の文</>
                         ) : (
                           <>
-                            {char?.features.avatar && <span>{char.features.avatar}</span>}
+                            {char && <AvatarDisplay character={char} size="sm" />}
                             #{idx + 1} {char?.name || '不明'}
                           </>
                         )}
@@ -1350,7 +1595,82 @@ const MultiCharacterChat = () => {
               </div>
             )}
             </>
-          )}
+          ) : sidebarView === 'stats' ? (
+            <>
+            <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
+              <BookOpen size={16} />
+              統計情報
+            </h3>
+            {(() => {
+              const stats = getConversationStats();
+              if (!stats) return <p className="text-sm text-gray-500">統計情報がありません</p>;
+
+              return (
+                <div className="space-y-3">
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <h4 className="font-semibold text-sm text-blue-800 mb-2">メッセージ</h4>
+                    <div className="text-xs space-y-1">
+                      <div className="flex justify-between">
+                        <span>総メッセージ数:</span>
+                        <span className="font-semibold">{stats.totalMessages}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>あなた:</span>
+                        <span className="font-semibold text-blue-600">{stats.userMessages}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span>地の文:</span>
+                        <span className="font-semibold text-amber-600">{stats.narrationCount}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                    <h4 className="font-semibold text-sm text-purple-800 mb-2">キャラクター発言数</h4>
+                    <div className="text-xs space-y-1">
+                      {Object.entries(stats.characterMessages).map(([charId, count]) => {
+                        const char = getCharacterById(charId);
+                        return (
+                          <div key={charId} className="flex justify-between items-center">
+                            <div className="flex items-center gap-1">
+                              {char && <AvatarDisplay character={char} size="sm" />}
+                              <span>{char?.name || '不明'}</span>
+                            </div>
+                            <span className="font-semibold text-purple-600">{count}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {Object.keys(stats.characterAffection).length > 0 && (
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                      <h4 className="font-semibold text-sm text-red-800 mb-2">平均好感度</h4>
+                      <div className="text-xs space-y-1">
+                        {Object.entries(stats.characterAffection).map(([charId, affections]) => {
+                          const char = getCharacterById(charId);
+                          const avg = Math.round(affections.reduce((a, b) => a + b, 0) / affections.length);
+                          return (
+                            <div key={charId} className="flex justify-between items-center">
+                              <div className="flex items-center gap-1">
+                                {char && <AvatarDisplay character={char} size="sm" />}
+                                <span>{char?.name || '不明'}</span>
+                              </div>
+                              <span className="font-semibold text-red-600 flex items-center gap-1">
+                                <Heart size={10} />
+                                {avg}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+            </>
+          ) : null}
           </div>
         </div>
 
@@ -1389,6 +1709,7 @@ const MultiCharacterChat = () => {
               handleSaveEdit={handleSaveEdit}
               handleCancelEdit={() => setEditingIndex(null)}
               handleDelete={handleDelete}
+              handleFork={handleFork}
               showRegeneratePrefill={showRegeneratePrefill}
               setShowRegeneratePrefill={setShowRegeneratePrefill}
               regeneratePrefill={regeneratePrefill}
@@ -1466,11 +1787,13 @@ const MultiCharacterChat = () => {
                 <option value="">自動</option>
                 {currentConversation.participantIds.map(charId => {
                   const char = getCharacterById(charId);
-                  return char ? (
+                  if (!char) return null;
+                  const avatar = char.features.avatarType === 'emoji' ? char.features.avatar : '📷';
+                  return (
                     <option key={charId} value={charId}>
-                      {char.features.avatar} {char.name}
+                      {avatar} {char.name}
                     </option>
-                  ) : null;
+                  );
                 })}
               </select>
             </div>
@@ -1523,6 +1846,8 @@ const MultiCharacterChat = () => {
         <CharacterModal
           characters={characters}
           setCharacters={setCharacters}
+          characterGroups={characterGroups}
+          setCharacterGroups={setCharacterGroups}
           getDefaultCharacter={getDefaultCharacter}
           exportCharacter={exportCharacter}
           importCharacter={importCharacter}
@@ -1561,9 +1886,9 @@ const MultiCharacterChat = () => {
 };
 
 // Message Bubble Component
-const MessageBubble = ({ 
-  message, 
-  index, 
+const MessageBubble = ({
+  message,
+  index,
   character,
   editingIndex,
   editingContent,
@@ -1572,6 +1897,7 @@ const MessageBubble = ({
   handleSaveEdit,
   handleCancelEdit,
   handleDelete,
+  handleFork,
   showRegeneratePrefill,
   setShowRegeneratePrefill,
   regeneratePrefill,
@@ -1609,9 +1935,7 @@ const MessageBubble = ({
               </>
             ) : (
               <>
-                {character?.features.avatar && (
-                  <span className="text-2xl">{character.features.avatar}</span>
-                )}
+                <AvatarDisplay character={character} size="sm" />
                 <span className="font-semibold text-sm text-indigo-600">
                   {character?.name || '不明なキャラクター'}
                 </span>
@@ -1630,24 +1954,31 @@ const MessageBubble = ({
             )}
           </div>
           <div className="flex gap-1">
-            <button 
-              onClick={() => handleEdit(index)} 
-              className="p-1 text-gray-500 hover:text-blue-600" 
+            <button
+              onClick={() => handleFork(index)}
+              className="p-1 text-gray-500 hover:text-green-600"
+              title="ここから分岐"
+            >
+              <Copy size={14} />
+            </button>
+            <button
+              onClick={() => handleEdit(index)}
+              className="p-1 text-gray-500 hover:text-blue-600"
               title="編集"
             >
               <Edit2 size={14} />
             </button>
-            <button 
-              onClick={() => handleDelete(index)} 
-              className="p-1 text-gray-500 hover:text-red-600" 
+            <button
+              onClick={() => handleDelete(index)}
+              className="p-1 text-gray-500 hover:text-red-600"
               title="削除"
             >
               <Trash2 size={14} />
             </button>
             {!isUser && !isNarration && (
-              <button 
-                onClick={() => setShowRegeneratePrefill(showRegeneratePrefill === index ? null : index)} 
-                className="p-1 text-gray-500 hover:text-purple-600" 
+              <button
+                onClick={() => setShowRegeneratePrefill(showRegeneratePrefill === index ? null : index)}
+                className="p-1 text-gray-500 hover:text-purple-600"
                 title="再生成"
               >
                 <RotateCcw size={14} />
@@ -1741,14 +2072,40 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
   const [localTitle, setLocalTitle] = useState(conversation.title);
   const [localBackground, setLocalBackground] = useState(conversation.backgroundInfo);
   const [localNarration, setLocalNarration] = useState(conversation.narrationEnabled);
+  const [localAutoNarration, setLocalAutoNarration] = useState(conversation.autoGenerateNarration || false);
   const [localParticipants, setLocalParticipants] = useState(conversation.participantIds);
+  const [localRelationships, setLocalRelationships] = useState(conversation.relationships || []);
+
+  const relationshipTypes = ['友人', '親友', '恋人', 'ライバル', '家族', '師弟', '同僚', 'その他'];
 
   const toggleParticipant = (charId) => {
-    setLocalParticipants(prev => 
+    setLocalParticipants(prev =>
       prev.includes(charId)
         ? prev.filter(id => id !== charId)
         : [...prev, charId]
     );
+  };
+
+  const addRelationship = () => {
+    if (localParticipants.length < 2) return;
+    setLocalRelationships(prev => [...prev, {
+      char1Id: localParticipants[0],
+      char2Id: localParticipants[1],
+      type: '友人',
+      description: ''
+    }]);
+  };
+
+  const updateRelationship = (index, field, value) => {
+    setLocalRelationships(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      return updated;
+    });
+  };
+
+  const deleteRelationship = (index) => {
+    setLocalRelationships(prev => prev.filter((_, i) => i !== index));
   };
 
   const handleSave = () => {
@@ -1756,7 +2113,9 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
       title: localTitle,
       backgroundInfo: localBackground,
       narrationEnabled: localNarration,
-      participantIds: localParticipants
+      autoGenerateNarration: localAutoNarration,
+      participantIds: localParticipants,
+      relationships: localRelationships
     });
     onClose();
   };
@@ -1793,7 +2152,7 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
         />
       </div>
 
-      <div>
+      <div className="space-y-2">
         <label className="flex items-center gap-2">
           <input
             type="checkbox"
@@ -1803,9 +2162,26 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
           />
           <span className="text-sm font-medium text-gray-700">地の文を有効化</span>
         </label>
-        <p className="text-xs text-gray-500 mt-1 ml-6">
+        <p className="text-xs text-gray-500 ml-6">
           情景描写や行動描写などのナレーションを追加できます
         </p>
+
+        {localNarration && (
+          <div className="ml-6 mt-2 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={localAutoNarration}
+                onChange={(e) => setLocalAutoNarration(e.target.checked)}
+                className="w-4 h-4"
+              />
+              <span className="text-sm font-medium text-purple-700">AIが自動で地の文を生成</span>
+            </label>
+            <p className="text-xs text-purple-600 mt-1 ml-6">
+              会話の合間に自動的に情景描写や行動描写を挿入します
+            </p>
+          </div>
+        )}
       </div>
 
       <div>
@@ -1827,12 +2203,92 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
                   onChange={() => toggleParticipant(char.id)}
                   className="w-4 h-4"
                 />
-                <span className="text-xl">{char.features.avatar}</span>
+                <AvatarDisplay character={char} size="sm" />
                 <div className="flex-1">
                   <div className="font-medium text-sm">{char.name}</div>
                   <div className="text-xs text-gray-500">{char.definition.personality}</div>
                 </div>
               </label>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <label className="block text-sm font-medium text-gray-700">
+            キャラクター間の関係性 ({localRelationships.length}件)
+          </label>
+          <button
+            onClick={addRelationship}
+            disabled={localParticipants.length < 2}
+            className="text-xs px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition disabled:bg-gray-100 disabled:text-gray-400 flex items-center gap-1"
+          >
+            <Plus size={14} />
+            追加
+          </button>
+        </div>
+        {localParticipants.length < 2 ? (
+          <p className="text-xs text-gray-500">2人以上のキャラクターを追加すると関係性を設定できます</p>
+        ) : localRelationships.length === 0 ? (
+          <p className="text-xs text-gray-500">関係性を追加して、キャラクター間の繋がりを定義できます</p>
+        ) : (
+          <div className="space-y-3 max-h-48 overflow-y-auto">
+            {localRelationships.map((rel, idx) => (
+              <div key={idx} className="p-3 border rounded-lg bg-gray-50 space-y-2">
+                <div className="flex items-center gap-2">
+                  <select
+                    value={rel.char1Id}
+                    onChange={(e) => updateRelationship(idx, 'char1Id', e.target.value)}
+                    className="flex-1 px-2 py-1 text-sm border rounded"
+                  >
+                    {localParticipants.map(charId => {
+                      const char = characters.find(c => c.id === charId);
+                      return char ? (
+                        <option key={charId} value={charId}>{char.name}</option>
+                      ) : null;
+                    })}
+                  </select>
+                  <span className="text-xs text-gray-500">と</span>
+                  <select
+                    value={rel.char2Id}
+                    onChange={(e) => updateRelationship(idx, 'char2Id', e.target.value)}
+                    className="flex-1 px-2 py-1 text-sm border rounded"
+                  >
+                    {localParticipants.map(charId => {
+                      const char = characters.find(c => c.id === charId);
+                      return char ? (
+                        <option key={charId} value={charId}>{char.name}</option>
+                      ) : null;
+                    })}
+                  </select>
+                </div>
+                <select
+                  value={rel.type}
+                  onChange={(e) => updateRelationship(idx, 'type', e.target.value)}
+                  className="w-full px-2 py-1 text-sm border rounded"
+                >
+                  {relationshipTypes.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={rel.description}
+                    onChange={(e) => updateRelationship(idx, 'description', e.target.value)}
+                    placeholder="詳細な説明（オプション）"
+                    className="flex-1 px-2 py-1 text-sm border rounded"
+                  />
+                  <button
+                    onClick={() => deleteRelationship(idx)}
+                    className="p-1 text-red-600 hover:bg-red-100 rounded"
+                    title="削除"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         )}
@@ -1857,19 +2313,62 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
 };
 
 // Character Modal Component (simplified version)
-const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, exportCharacter, importCharacter, characterFileInputRef, onClose }) => {
+const CharacterModal = ({ characters, setCharacters, characterGroups, setCharacterGroups, getDefaultCharacter, exportCharacter, importCharacter, characterFileInputRef, onClose }) => {
   const [editingChar, setEditingChar] = useState(null);
   const [isNew, setIsNew] = useState(false);
+  const [isDerived, setIsDerived] = useState(false);
+  const [viewTab, setViewTab] = useState('characters'); // 'characters' or 'groups'
+  const [editingGroup, setEditingGroup] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const avatarImageInputRef = useRef(null);
+
+  const filteredCharacters = characters.filter(char => {
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return char.name.toLowerCase().includes(query) ||
+           char.definition.personality?.toLowerCase().includes(query) ||
+           char.definition.background?.toLowerCase().includes(query);
+  });
 
   const handleCreate = () => {
     const newChar = getDefaultCharacter();
     setEditingChar(newChar);
     setIsNew(true);
+    setIsDerived(false);
+  };
+
+  const handleCreateDerived = (baseChar) => {
+    const newChar = {
+      ...getDefaultCharacter(),
+      name: `${baseChar.name}（派生）`,
+      baseCharacterId: baseChar.id,
+      overrides: {} // Start with no overrides
+    };
+    setEditingChar(newChar);
+    setIsNew(true);
+    setIsDerived(true);
   };
 
   const handleEdit = (char) => {
     setEditingChar(JSON.parse(JSON.stringify(char)));
     setIsNew(false);
+    setIsDerived(!!char.baseCharacterId);
+  };
+
+  const toggleOverride = (field) => {
+    if (!editingChar) return;
+
+    const newOverrides = { ...editingChar.overrides };
+    if (newOverrides[field]) {
+      delete newOverrides[field];
+    } else {
+      newOverrides[field] = true;
+    }
+
+    setEditingChar({
+      ...editingChar,
+      overrides: newOverrides
+    });
   };
 
   const handleSave = () => {
@@ -1880,10 +2379,52 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
     }
     setEditingChar(null);
     setIsNew(false);
+    setIsDerived(false);
   };
 
   const handleDelete = (charId) => {
+    // Check if any character derives from this one
+    const hasDerived = characters.some(c => c.baseCharacterId === charId);
+    if (hasDerived && !confirm('このキャラクターから派生したキャラクターが存在します。削除すると派生キャラクターも影響を受けます。続けますか？')) {
+      return;
+    }
     setCharacters(prev => prev.filter(c => c.id !== charId));
+  };
+
+  const getBaseCharacter = (charId) => {
+    return characters.find(c => c.id === charId);
+  };
+
+  const handleAvatarImageUpload = (event) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      alert('画像ファイルを選択してください');
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      alert('ファイルサイズは2MB以下にしてください');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64Image = e.target.result;
+      setEditingChar({
+        ...editingChar,
+        features: {
+          ...editingChar.features,
+          avatarType: 'image',
+          avatarImage: base64Image
+        }
+      });
+    };
+    reader.readAsDataURL(file);
+    event.target.value = '';
   };
 
   return (
@@ -1909,22 +2450,68 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
         <div className="p-4 space-y-4">
           {editingChar ? (
             <div className="space-y-3">
-              <h3 className="font-bold text-lg">
-                {isNew ? '新規キャラクター' : 'キャラクター編集'}
+              <h3 className="font-bold text-lg flex items-center gap-2">
+                {isNew ? (isDerived ? '派生キャラクター作成' : '新規キャラクター') : 'キャラクター編集'}
+                {isDerived && (
+                  <span className="text-sm bg-purple-100 text-purple-700 px-2 py-1 rounded flex items-center gap-1">
+                    <Layers size={14} />
+                    派生
+                  </span>
+                )}
               </h3>
-              
+
+              {isDerived && editingChar.baseCharacterId && (
+                <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                  <div className="flex items-center gap-2 text-sm text-purple-800">
+                    <Layers size={14} />
+                    <span className="font-semibold">派生元:</span>
+                    <span>{getBaseCharacter(editingChar.baseCharacterId)?.name || '不明'}</span>
+                  </div>
+                  <p className="text-xs text-purple-600 mt-1">
+                    チェックを入れた項目のみカスタマイズできます。未チェックは派生元の値を継承します。
+                  </p>
+                </div>
+              )}
+
               <div>
-                <label className="block text-sm font-medium mb-1">名前 *</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium">名前 *</label>
+                  {isDerived && (
+                    <label className="flex items-center gap-1 text-xs text-purple-600">
+                      <input
+                        type="checkbox"
+                        checked={editingChar.overrides.name}
+                        onChange={() => toggleOverride('name')}
+                        className="w-3 h-3"
+                      />
+                      カスタマイズ
+                    </label>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={editingChar.name}
                   onChange={(e) => setEditingChar({...editingChar, name: e.target.value})}
                   className="w-full px-3 py-2 border rounded-lg"
+                  disabled={isDerived && !editingChar.overrides.name}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">性格</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium">性格</label>
+                  {isDerived && (
+                    <label className="flex items-center gap-1 text-xs text-purple-600">
+                      <input
+                        type="checkbox"
+                        checked={editingChar.overrides.personality}
+                        onChange={() => toggleOverride('personality')}
+                        className="w-3 h-3"
+                      />
+                      カスタマイズ
+                    </label>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={editingChar.definition.personality}
@@ -1933,11 +2520,25 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
                     definition: {...editingChar.definition, personality: e.target.value}
                   })}
                   className="w-full px-3 py-2 border rounded-lg"
+                  disabled={isDerived && !editingChar.overrides.personality}
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">話し方</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium">話し方</label>
+                  {isDerived && (
+                    <label className="flex items-center gap-1 text-xs text-purple-600">
+                      <input
+                        type="checkbox"
+                        checked={editingChar.overrides.speakingStyle}
+                        onChange={() => toggleOverride('speakingStyle')}
+                        className="w-3 h-3"
+                      />
+                      カスタマイズ
+                    </label>
+                  )}
+                </div>
                 <input
                   type="text"
                   value={editingChar.definition.speakingStyle}
@@ -1946,12 +2547,25 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
                     definition: {...editingChar.definition, speakingStyle: e.target.value}
                   })}
                   className="w-full px-3 py-2 border rounded-lg"
+                  disabled={isDerived && !editingChar.overrides.speakingStyle}
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium mb-1">一人称</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium">一人称</label>
+                    {isDerived && (
+                      <label className="flex items-center gap-1 text-xs text-purple-600">
+                        <input
+                          type="checkbox"
+                          checked={editingChar.overrides.firstPerson}
+                          onChange={() => toggleOverride('firstPerson')}
+                          className="w-3 h-3"
+                        />
+                      </label>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={editingChar.definition.firstPerson}
@@ -1960,10 +2574,23 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
                       definition: {...editingChar.definition, firstPerson: e.target.value}
                     })}
                     className="w-full px-3 py-2 border rounded-lg"
+                    disabled={isDerived && !editingChar.overrides.firstPerson}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">二人称</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium">二人称</label>
+                    {isDerived && (
+                      <label className="flex items-center gap-1 text-xs text-purple-600">
+                        <input
+                          type="checkbox"
+                          checked={editingChar.overrides.secondPerson}
+                          onChange={() => toggleOverride('secondPerson')}
+                          className="w-3 h-3"
+                        />
+                      </label>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={editingChar.definition.secondPerson}
@@ -1972,6 +2599,7 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
                       definition: {...editingChar.definition, secondPerson: e.target.value}
                     })}
                     className="w-full px-3 py-2 border rounded-lg"
+                    disabled={isDerived && !editingChar.overrides.secondPerson}
                   />
                 </div>
               </div>
@@ -2035,18 +2663,142 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">アバター絵文字</label>
-                <input
-                  type="text"
-                  value={editingChar.features.avatar}
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium">カスタムシステムプロンプト</label>
+                  {isDerived && (
+                    <label className="flex items-center gap-1 text-xs text-purple-600">
+                      <input
+                        type="checkbox"
+                        checked={editingChar.overrides.customPrompt}
+                        onChange={() => toggleOverride('customPrompt')}
+                        className="w-3 h-3"
+                      />
+                      カスタマイズ
+                    </label>
+                  )}
+                </div>
+                <textarea
+                  value={editingChar.definition.customPrompt || ''}
                   onChange={(e) => setEditingChar({
                     ...editingChar,
-                    features: {...editingChar.features, avatar: e.target.value}
+                    definition: {...editingChar.definition, customPrompt: e.target.value}
                   })}
-                  className="w-full px-3 py-2 border rounded-lg text-2xl"
-                  maxLength={2}
+                  placeholder="キャラクターに関する追加の指示や設定を記述できます。&#10;例: このキャラクターは特定の話題には強い意見を持っています。&#10;より詳細なロールプレイ設定や制約を記述できます。"
+                  className="w-full px-3 py-2 border rounded-lg text-sm min-h-[100px]"
+                  disabled={isDerived && !editingChar.overrides.customPrompt}
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  キャラクター設定に追加したい詳細な指示を自由に記述できます
+                </p>
               </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium">アバター</label>
+                  {isDerived && (
+                    <label className="flex items-center gap-1 text-xs text-purple-600">
+                      <input
+                        type="checkbox"
+                        checked={editingChar.overrides.avatar}
+                        onChange={() => toggleOverride('avatar')}
+                        className="w-3 h-3"
+                      />
+                      カスタマイズ
+                    </label>
+                  )}
+                </div>
+
+                <div className="flex gap-2 mb-2">
+                  <button
+                    onClick={() => setEditingChar({
+                      ...editingChar,
+                      features: {...editingChar.features, avatarType: 'emoji'}
+                    })}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                      editingChar.features.avatarType === 'emoji'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                    disabled={isDerived && !editingChar.overrides.avatar}
+                  >
+                    😊 絵文字
+                  </button>
+                  <button
+                    onClick={() => setEditingChar({
+                      ...editingChar,
+                      features: {...editingChar.features, avatarType: 'image'}
+                    })}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition ${
+                      editingChar.features.avatarType === 'image'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                    disabled={isDerived && !editingChar.overrides.avatar}
+                  >
+                    <Image size={14} className="inline mr-1" />
+                    画像
+                  </button>
+                </div>
+
+                {editingChar.features.avatarType === 'emoji' ? (
+                  <input
+                    type="text"
+                    value={editingChar.features.avatar}
+                    onChange={(e) => setEditingChar({
+                      ...editingChar,
+                      features: {...editingChar.features, avatar: e.target.value}
+                    })}
+                    className="w-full px-3 py-2 border rounded-lg text-2xl"
+                    maxLength={2}
+                    placeholder="絵文字を入力"
+                    disabled={isDerived && !editingChar.overrides.avatar}
+                  />
+                ) : (
+                  <div className="space-y-2">
+                    {editingChar.features.avatarImage && (
+                      <div className="flex items-center gap-3">
+                        <div className="w-16 h-16 rounded-full overflow-hidden bg-gray-100">
+                          <img
+                            src={editingChar.features.avatarImage}
+                            alt="Avatar preview"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                        <button
+                          onClick={() => setEditingChar({
+                            ...editingChar,
+                            features: {...editingChar.features, avatarImage: null}
+                          })}
+                          className="text-red-600 hover:text-red-700 text-sm"
+                          disabled={isDerived && !editingChar.overrides.avatar}
+                        >
+                          <Trash2 size={14} className="inline mr-1" />
+                          削除
+                        </button>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => avatarImageInputRef.current?.click()}
+                      className="w-full px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg hover:bg-indigo-200 transition text-sm flex items-center justify-center gap-2"
+                      disabled={isDerived && !editingChar.overrides.avatar}
+                    >
+                      <Upload size={16} />
+                      {editingChar.features.avatarImage ? '画像を変更' : '画像をアップロード'}
+                    </button>
+                    <p className="text-xs text-gray-500">
+                      JPG, PNG, GIF対応（最大2MB）
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <input
+                ref={avatarImageInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarImageUpload}
+                className="hidden"
+              />
 
               <div className="border-t pt-3 space-y-3">
                 <h4 className="font-semibold text-sm">機能設定</h4>
@@ -2166,46 +2918,84 @@ const CharacterModal = ({ characters, setCharacters, getDefaultCharacter, export
                 </button>
               </div>
 
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="キャラクター名や性格で検索..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-lg pr-10"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X size={16} />
+                  </button>
+                )}
+              </div>
+
               <div className="space-y-2">
-                {characters.length === 0 ? (
+                {filteredCharacters.length === 0 ? (
                   <p className="text-center text-gray-500 py-8">
-                    キャラクターがありません
+                    {searchQuery ? '検索結果がありません' : 'キャラクターがありません'}
                   </p>
                 ) : (
-                  characters.map(char => (
-                    <div key={char.id} className="border rounded-lg p-3 flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl">{char.features.avatar}</span>
-                        <div>
-                          <div className="font-semibold">{char.name}</div>
-                          <div className="text-xs text-gray-500">{char.definition.personality}</div>
+                  filteredCharacters.map(char => {
+                    const baseChar = char.baseCharacterId ? getBaseCharacter(char.baseCharacterId) : null;
+                    return (
+                      <div key={char.id} className="border rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3 flex-1 min-w-0">
+                            <AvatarDisplay character={char} size="md" />
+                            <div className="min-w-0 flex-1">
+                              <div className="font-semibold flex items-center gap-2">
+                                {char.name}
+                                {baseChar && (
+                                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded flex items-center gap-1">
+                                    <Layers size={10} />
+                                    派生元: {baseChar.name}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-500">{char.definition.personality}</div>
+                            </div>
+                          </div>
+                          <div className="flex gap-1 flex-shrink-0">
+                            <button
+                              onClick={() => handleCreateDerived(char)}
+                              className="p-2 text-purple-600 hover:bg-purple-50 rounded"
+                              title="派生キャラを作成"
+                            >
+                              <Layers size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleEdit(char)}
+                              className="p-2 text-blue-600 hover:bg-blue-50 rounded"
+                              title="編集"
+                            >
+                              <Edit2 size={16} />
+                            </button>
+                            <button
+                              onClick={() => exportCharacter(char.id)}
+                              className="p-2 text-green-600 hover:bg-green-50 rounded"
+                              title="エクスポート"
+                            >
+                              <Download size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(char.id)}
+                              className="p-2 text-red-600 hover:bg-red-50 rounded"
+                              title="削除"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => handleEdit(char)}
-                          className="p-2 text-blue-600 hover:bg-blue-50 rounded"
-                          title="編集"
-                        >
-                          <Edit2 size={16} />
-                        </button>
-                        <button
-                          onClick={() => exportCharacter(char.id)}
-                          className="p-2 text-green-600 hover:bg-green-50 rounded"
-                          title="エクスポート"
-                        >
-                          <Download size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(char.id)}
-                          className="p-2 text-red-600 hover:bg-red-50 rounded"
-                          title="削除"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </>
@@ -2258,6 +3048,37 @@ const ConfirmDialog = ({ title, message, onConfirm, onCancel }) => {
         </div>
       </div>
     </div>
+  );
+};
+
+// Avatar Display Component
+const AvatarDisplay = ({ character, size = 'md' }) => {
+  if (!character) return null;
+
+  const sizeClasses = {
+    sm: 'w-6 h-6 text-sm',
+    md: 'w-10 h-10 text-2xl',
+    lg: 'w-16 h-16 text-4xl'
+  };
+
+  const sizeClass = sizeClasses[size] || sizeClasses.md;
+
+  if (character.features.avatarType === 'image' && character.features.avatarImage) {
+    return (
+      <div className={`${sizeClass} rounded-full overflow-hidden flex-shrink-0 bg-gray-100`}>
+        <img
+          src={character.features.avatarImage}
+          alt={character.name}
+          className="w-full h-full object-cover"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <span className={`${sizeClass} flex items-center justify-center flex-shrink-0`}>
+      {character.features.avatar || '😊'}
+    </span>
   );
 };
 
