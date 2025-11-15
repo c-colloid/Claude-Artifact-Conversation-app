@@ -17,8 +17,41 @@
  * - LocalStorageによる自動保存
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { AlertCircle, Trash2, Edit2, RotateCcw, Send, Plus, Eye, EyeOff, Settings, Menu, X, Hash, RefreshCw, Save, HardDrive, User, Heart, Download, Upload, ChevronDown, ChevronRight, Layers, Copy, MessageSquare, Check, Users, BookOpen, FileText, Image } from 'lucide-react';
+
+/**
+ * デバウンス関数
+ * 連続した呼び出しを遅延させ、最後の呼び出しのみを実行する
+ * @param {Function} func - 実行する関数
+ * @param {number} delay - 遅延時間（ミリ秒）
+ * @returns {Function} デバウンスされた関数
+ */
+const debounce = (func, delay) => {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => func(...args), delay);
+  };
+};
+
+/**
+ * スロットル関数
+ * 一定時間内に1回のみ関数を実行する
+ * @param {Function} func - 実行する関数
+ * @param {number} limit - 実行間隔（ミリ秒）
+ * @returns {Function} スロットルされた関数
+ */
+const throttle = (func, limit) => {
+  let inThrottle;
+  return (...args) => {
+    if (!inThrottle) {
+      func(...args);
+      inThrottle = true;
+      setTimeout(() => inThrottle = false, limit);
+    }
+  };
+};
 
 const MultiCharacterChat = () => {
   // Initialization state
@@ -85,7 +118,6 @@ const MultiCharacterChat = () => {
   const characterFileInputRef = useRef(null);
   const conversationFileInputRef = useRef(null);
   const messageRefs = useRef({});
-  const autoSaveTimerRef = useRef(null);
   const textareaRef = useRef(null);
 
   // ===== 定数定義 =====
@@ -1036,7 +1068,7 @@ const MultiCharacterChat = () => {
     }
   };
 
-  const saveToStorage = () => {
+  const saveToStorage = useCallback(() => {
     if (!autoSaveEnabled || !isInitialized) return;
 
     setSaveStatus('saving');
@@ -1053,7 +1085,7 @@ const MultiCharacterChat = () => {
         timestamp: new Date().toISOString(),
         version: '1.0'
       };
-      
+
       localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
       setLastSaved(new Date());
       setSaveStatus('saved');
@@ -1063,7 +1095,18 @@ const MultiCharacterChat = () => {
       setSaveStatus('error');
       setTimeout(() => setSaveStatus(''), 3000);
     }
-  };
+  }, [characters, characterGroups, conversations, currentConversationId, selectedModel, thinkingEnabled, thinkingBudget, usageStats, autoSaveEnabled, isInitialized]);
+
+  /**
+   * デバウンスされた自動保存関数
+   * 2秒の遅延で保存を実行し、頻繁な保存を防ぐ
+   */
+  const debouncedSave = useMemo(
+    () => debounce(() => {
+      saveToStorage();
+    }, AUTO_SAVE_DELAY),
+    [saveToStorage]
+  );
 
   const loadFromStorage = () => {
     try {
@@ -1165,24 +1208,15 @@ const MultiCharacterChat = () => {
     fetchModels();
   }, []);
 
-  // Auto-save effect
+  /**
+   * 自動保存Effect
+   * データが変更されるたびにデバウンスされた保存を実行
+   * デバウンス関数により、2秒以内の連続した変更は1回の保存にまとめられる
+   */
   useEffect(() => {
     if (!isInitialized) return;
-
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-
-    autoSaveTimerRef.current = setTimeout(() => {
-      saveToStorage();
-    }, 2000);
-
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-    };
-  }, [characters, conversations, currentConversationId, selectedModel, thinkingEnabled, thinkingBudget, usageStats, autoSaveEnabled, isInitialized]);
+    debouncedSave();
+  }, [characters, conversations, currentConversationId, selectedModel, thinkingEnabled, thinkingBudget, usageStats, autoSaveEnabled, isInitialized, debouncedSave]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -2356,15 +2390,32 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
   const [viewTab, setViewTab] = useState('characters'); // 'characters' or 'groups'
   const [editingGroup, setEditingGroup] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [showImageCropper, setShowImageCropper] = useState(false);
   const [uploadedImage, setUploadedImage] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
   const avatarImageInputRef = useRef(null);
 
+  /**
+   * デバウンスされた検索処理
+   * 300ms遅延させることで、ユーザーが入力中の不要な処理を削減
+   */
+  const debouncedSearch = useMemo(
+    () => debounce((query) => {
+      setDebouncedSearchQuery(query);
+    }, 300),
+    []
+  );
+
+  // 検索クエリが変更されたらデバウンス検索を実行
+  useEffect(() => {
+    debouncedSearch(searchQuery);
+  }, [searchQuery, debouncedSearch]);
+
   const filteredCharacters = characters.filter(char => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
+    if (!debouncedSearchQuery) return true;
+    const query = debouncedSearchQuery.toLowerCase();
     return char.name.toLowerCase().includes(query) ||
            char.definition.personality?.toLowerCase().includes(query) ||
            char.definition.background?.toLowerCase().includes(query);
