@@ -188,21 +188,25 @@ const MultiCharacterChat = () => {
     updated: new Date().toISOString()
   });
 
-  const getCurrentConversation = () => {
+  // ===== パフォーマンス最適化: useMemoで計算コストの高い値をメモ化 =====
+
+  // 現在の会話をメモ化
+  const getCurrentConversation = useMemo(() => {
     return conversations.find(c => c.id === currentConversationId);
-  };
+  }, [conversations, currentConversationId]);
 
-  const getCurrentMessages = () => {
-    const conv = getCurrentConversation();
-    return conv?.messages || [];
-  };
+  // 現在のメッセージリストをメモ化
+  const getCurrentMessages = useMemo(() => {
+    return getCurrentConversation?.messages || [];
+  }, [getCurrentConversation]);
 
-  const getCharacterById = (id) => {
+  // キャラクター検索をメモ化（useCallback）
+  const getCharacterById = useCallback((id) => {
     return characters.find(c => c.id === id);
-  };
+  }, [characters]);
 
-  // Get effective character with base properties merged
-  const getEffectiveCharacter = (character) => {
+  // 派生キャラクターを含む実効的なキャラクター情報を取得（useCallbackでメモ化）
+  const getEffectiveCharacter = useCallback((character) => {
     if (!character) return null;
 
     // If no base, return as-is
@@ -244,7 +248,7 @@ const MultiCharacterChat = () => {
     };
 
     return merged;
-  };
+  }, [getCharacterById]);
 
   const parseMultiCharacterResponse = (responseText, conversation, thinkingContent) => {
     const messages = [];
@@ -395,7 +399,8 @@ const MultiCharacterChat = () => {
     ));
   };
 
-  const buildSystemPrompt = (conversation, nextSpeakerId = null) => {
+  // システムプロンプトを構築（useCallbackでメモ化）
+  const buildSystemPrompt = useCallback((conversation, nextSpeakerId = null) => {
     if (!conversation) return '';
 
     const participants = conversation.participantIds
@@ -453,7 +458,7 @@ const MultiCharacterChat = () => {
     }
 
     prompt += `## 重要な指示\n`;
-    
+
     // If next speaker is specified
     if (nextSpeakerId) {
       const nextChar = participants.find(c => c.id === nextSpeakerId);
@@ -465,25 +470,25 @@ const MultiCharacterChat = () => {
       prompt += `1. 次に発言すべきキャラクターを判断し、そのキャラクターとして発言してください\n`;
       prompt += `2. 発言の最初に [CHARACTER:キャラクター名] を必ず出力してください\n`;
     }
-    
+
     prompt += `3. 各キャラクターの個性を維持し、自然な会話の流れを作ってください\n`;
     prompt += `4. 一人称・二人称は各キャラクターの設定に従ってください\n`;
-    
+
     // Add emotion/affection instructions for characters with these features enabled
     const hasAutoEmotion = participants.some(c => c.features.emotionEnabled && c.features.autoManageEmotion);
     const hasAutoAffection = participants.some(c => c.features.affectionEnabled && c.features.autoManageAffection);
-    
+
     if (hasAutoEmotion) {
       prompt += `5. 感情表現: 会話の流れに応じて、発言の最後に [EMOTION:感情キー] を出力してください\n`;
       prompt += `   利用可能な感情: ${Object.keys(emotions).join(', ')}\n`;
     }
-    
+
     if (hasAutoAffection) {
       const affectionNum = hasAutoEmotion ? 6 : 5;
       prompt += `${affectionNum}. 好感度: 会話内容に応じて、発言の最後に [AFFECTION:数値] を出力してください（0-100）\n`;
       prompt += `   好感度変動の目安: ポジティブな会話+1〜+5、ネガティブな会話-1〜-5\n`;
     }
-    
+
     if (conversation.narrationEnabled) {
       const narrationNum = hasAutoEmotion && hasAutoAffection ? 7 : hasAutoEmotion || hasAutoAffection ? 6 : 5;
       if (conversation.autoGenerateNarration) {
@@ -502,7 +507,7 @@ const MultiCharacterChat = () => {
     prompt += `${participants[0]?.definition.firstPerson || '私'}も同じ意見だよ!\n`;
 
     return prompt;
-  };
+  }, [getCharacterById, getEffectiveCharacter]);
 
   const createNewConversation = () => {
     const newConv = getDefaultConversation();
@@ -1908,7 +1913,9 @@ const MultiCharacterChat = () => {
 };
 
 // Message Bubble Component
-const MessageBubble = ({
+// ===== パフォーマンス最適化: React.memoでメモ化されたメッセージバブル =====
+// メッセージの内容が変更された場合のみ再レンダリングされます
+const MessageBubble = React.memo(({
   message,
   index,
   character,
@@ -1937,10 +1944,10 @@ const MessageBubble = ({
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-4xl w-full ${
-        isNarration 
-          ? 'bg-amber-50 border-l-4 border-amber-400' 
-          : isUser 
-            ? 'bg-blue-100' 
+        isNarration
+          ? 'bg-amber-50 border-l-4 border-amber-400'
+          : isUser
+            ? 'bg-blue-100'
             : 'bg-white'
       } rounded-lg shadow-md p-4`}>
         <div className="flex items-center justify-between mb-2">
@@ -2012,23 +2019,23 @@ const MessageBubble = ({
         {showRegeneratePrefill === index && !isUser && !isNarration && (
           <div className="mb-3 bg-purple-50 border border-purple-200 rounded-lg p-3">
             <label className="block text-xs font-medium text-purple-700 mb-2">再生成Prefill</label>
-            <input 
-              type="text" 
-              value={regeneratePrefill} 
-              onChange={(e) => setRegeneratePrefill(e.target.value)} 
-              placeholder="例: [CHARACTER:キャラ名]" 
-              className="w-full px-3 py-2 border border-purple-300 rounded-lg text-sm mb-2" 
+            <input
+              type="text"
+              value={regeneratePrefill}
+              onChange={(e) => setRegeneratePrefill(e.target.value)}
+              placeholder="例: [CHARACTER:キャラ名]"
+              className="w-full px-3 py-2 border border-purple-300 rounded-lg text-sm mb-2"
             />
             <div className="flex gap-2">
-              <button 
-                onClick={() => handleRegenerateFrom(index)} 
-                className="px-3 py-1.5 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-xs" 
+              <button
+                onClick={() => handleRegenerateFrom(index)}
+                className="px-3 py-1.5 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-xs"
                 disabled={isLoading}
               >
                 実行
               </button>
-              <button 
-                onClick={() => { setShowRegeneratePrefill(null); setRegeneratePrefill(''); }} 
+              <button
+                onClick={() => { setShowRegeneratePrefill(null); setRegeneratePrefill(''); }}
                 className="px-3 py-1.5 bg-gray-400 text-white rounded-lg hover:bg-gray-500 text-xs"
               >
                 キャンセル
@@ -2041,8 +2048,8 @@ const MessageBubble = ({
           <div className="mb-3 border-l-4 border-yellow-400 bg-yellow-50 p-3 rounded">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-yellow-700">💭 思考</span>
-              <button 
-                onClick={() => setShowThinking(!showThinking)} 
+              <button
+                onClick={() => setShowThinking(!showThinking)}
                 className="text-yellow-600"
               >
                 {showThinking ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -2058,21 +2065,21 @@ const MessageBubble = ({
 
         {editingIndex === index ? (
           <div className="space-y-2">
-            <textarea 
-              value={editingContent} 
-              onChange={(e) => setEditingContent(e.target.value)} 
-              className="w-full p-3 border border-gray-300 rounded-lg text-sm" 
-              rows={10} 
+            <textarea
+              value={editingContent}
+              onChange={(e) => setEditingContent(e.target.value)}
+              className="w-full p-3 border border-gray-300 rounded-lg text-sm"
+              rows={10}
             />
             <div className="flex gap-2">
-              <button 
-                onClick={() => handleSaveEdit(index)} 
+              <button
+                onClick={() => handleSaveEdit(index)}
                 className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 text-sm"
               >
                 保存
               </button>
-              <button 
-                onClick={handleCancelEdit} 
+              <button
+                onClick={handleCancelEdit}
                 className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 text-sm"
               >
                 キャンセル
@@ -2087,7 +2094,14 @@ const MessageBubble = ({
       </div>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // カスタム比較関数: メッセージの内容とインデックスが同じなら再レンダリングしない
+  return prevProps.message.content === nextProps.message.content &&
+         prevProps.message.timestamp === nextProps.message.timestamp &&
+         prevProps.editingIndex === nextProps.editingIndex &&
+         prevProps.showRegeneratePrefill === nextProps.showRegeneratePrefill &&
+         prevProps.character?.id === nextProps.character?.id;
+});
 
 // Conversation Settings Panel Component
 const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose }) => {
@@ -3491,7 +3505,8 @@ const ImageCropper = ({ imageSrc, onCrop, onCancel }) => {
   );
 };
 
-const ConfirmDialog = ({ title, message, onConfirm, onCancel }) => {
+// ===== パフォーマンス最適化: React.memoでメモ化された確認ダイアログ =====
+const ConfirmDialog = React.memo(({ title, message, onConfirm, onCancel }) => {
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
@@ -3523,10 +3538,10 @@ const ConfirmDialog = ({ title, message, onConfirm, onCancel }) => {
       </div>
     </div>
   );
-};
+});
 
-// Avatar Display Component
-const AvatarDisplay = ({ character, size = 'md' }) => {
+// ===== パフォーマンス最適化: React.memoでメモ化されたアバター表示 =====
+const AvatarDisplay = React.memo(({ character, size = 'md' }) => {
   if (!character) return null;
 
   const sizeClasses = {
@@ -3554,6 +3569,12 @@ const AvatarDisplay = ({ character, size = 'md' }) => {
       {character.features.avatar || '😊'}
     </span>
   );
-};
+}, (prevProps, nextProps) => {
+  // キャラクターIDとアバター設定が同じなら再レンダリングしない
+  return prevProps.character?.id === nextProps.character?.id &&
+         prevProps.character?.features.avatar === nextProps.character?.features.avatar &&
+         prevProps.character?.features.avatarImage === nextProps.character?.features.avatarImage &&
+         prevProps.size === nextProps.size;
+});
 
 export default MultiCharacterChat;
