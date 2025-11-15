@@ -1361,7 +1361,8 @@ const MultiCharacterChat = () => {
       messages: historyUpToPoint
     });
 
-    if (historyUpToPoint.length > 0) {
+    // Only regenerate if the last message is from user or narration (not from assistant/character)
+    if (historyUpToPoint.length > 0 && historyUpToPoint[historyUpToPoint.length - 1].role === 'user') {
       await generateResponse(historyUpToPoint, false, regeneratePrefill);
     }
 
@@ -1603,6 +1604,17 @@ const MultiCharacterChat = () => {
     };
 
     initializeData();
+
+    // Service Worker 登録（パフォーマンス改善、オフライン対応）
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/service-worker.js')
+        .then((registration) => {
+          console.log('[App] Service Worker registered successfully:', registration.scope);
+        })
+        .catch((error) => {
+          console.error('[App] Service Worker registration failed:', error);
+        });
+    }
   }, []);
 
   /**
@@ -2661,7 +2673,8 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpda
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 overflow-y-auto"
+      style={{ zIndex: 50 }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
@@ -2669,10 +2682,11 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpda
       }}
     >
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col"
+        className="bg-white rounded-lg shadow-xl w-full max-w-3xl my-8 flex flex-col"
+        style={{ maxHeight: 'calc(100vh - 4rem)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between flex-shrink-0">
+        <div className="bg-white border-b p-4 flex items-center justify-between flex-shrink-0">
           <h3 className="font-semibold text-xl text-indigo-600 flex items-center gap-2">
             <Users size={24} />
             会話設定
@@ -2682,7 +2696,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpda
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ minHeight: 0 }}>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">会話タイトル</label>
@@ -3084,7 +3098,8 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 overflow-y-auto"
+      style={{ zIndex: 50 }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
@@ -3092,17 +3107,18 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
       }}
     >
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-lg shadow-xl w-full max-w-4xl my-8 flex flex-col"
+        style={{ maxHeight: 'calc(100vh - 4rem)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
+        <div className="bg-white border-b p-4 flex items-center justify-between flex-shrink-0">
           <h2 className="text-xl font-bold text-indigo-600">キャラクター管理</h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
             <X size={20} />
           </button>
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="overflow-y-auto p-4 flex-1" style={{ minHeight: 0 }}>
           {editingChar ? (
             <div className="space-y-3">
               <h3 className="font-bold text-lg flex items-center gap-2">
