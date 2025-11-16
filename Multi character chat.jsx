@@ -274,7 +274,7 @@ const IndexedDBWrapper = {
         db.close();
       };
     });
-  }
+  },
 };
 
 const MultiCharacterChat = () => {
