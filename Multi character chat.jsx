@@ -136,12 +136,17 @@ const IndexedDBWrapper = {
   DB_NAME: 'MultiCharacterChatDB',
   DB_VERSION: 1,
   STORE_NAME: 'appData',
+  dbInstance: null,
 
   /**
-   * データベースを開く
+   * データベースを開く（接続をキャッシュして再利用）
    * @returns {Promise<IDBDatabase>}
    */
   openDB: function() {
+    if (this.dbInstance) {
+      return Promise.resolve(this.dbInstance);
+    }
+
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
 
@@ -150,7 +155,8 @@ const IndexedDBWrapper = {
       };
 
       request.onsuccess = () => {
-        resolve(request.result);
+        this.dbInstance = request.result;
+        resolve(this.dbInstance);
       };
 
       request.onupgradeneeded = (event) => {
@@ -181,14 +187,7 @@ const IndexedDBWrapper = {
       const request = operation(objectStore);
 
       request.onsuccess = () => resolve(processResult ? processResult(request.result) : undefined);
-      request.onerror = () => {
-        db.close();
-        reject(new Error(errorMsg));
-      };
-
-      transaction.oncomplete = () => db.close();
-      transaction.onerror = () => db.close();
-      transaction.onabort = () => db.close();
+      request.onerror = () => reject(new Error(errorMsg));
     });
   },
 
