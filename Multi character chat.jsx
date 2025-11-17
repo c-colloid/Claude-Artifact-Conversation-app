@@ -274,7 +274,7 @@ const IndexedDBWrapper = {
         db.close();
       };
     });
-  }
+  },
 };
 
 const MultiCharacterChat = () => {
@@ -331,7 +331,7 @@ const MultiCharacterChat = () => {
   // UI state
   const [showSettings, setShowSettings] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
-  const [sidebarView, setSidebarView] = useState('conversations'); // 'conversations', 'history', 'stats'
+  const [sidebarView, setSidebarView] = useState('conversations'); // 'conversations', 'messages', 'stats'
   const [showConversationSettings, setShowConversationSettings] = useState(false);
 
   // Message display optimization
@@ -671,21 +671,51 @@ const MultiCharacterChat = () => {
     return { messages, characterUpdates };
   };
 
-  const updateCharacter = (characterId, updates) => {
-    setCharacters(chars => chars.map(c => 
-      c.id === characterId 
+  /**
+   * キャラクター更新（useCallbackでメモ化）
+   * 依存関係なし（setCharactersは安定）
+   */
+  const updateCharacter = useCallback((characterId, updates) => {
+    setCharacters(chars => chars.map(c =>
+      c.id === characterId
         ? { ...c, ...updates, updated: new Date().toISOString() }
         : c
     ));
-  };
+  }, []);
 
-  const updateConversation = (conversationId, updates) => {
-    setConversations(prev => prev.map(conv => 
-      conv.id === conversationId 
+  /**
+   * 会話更新（useCallbackでメモ化）
+   * 依存関係なし（setConversationsは安定）
+   */
+  const updateConversation = useCallback((conversationId, updates) => {
+    setConversations(prev => prev.map(conv =>
+      conv.id === conversationId
         ? { ...conv, ...updates, updated: new Date().toISOString() }
         : conv
     ));
-  };
+  }, []);
+
+  // システムプロンプトを構築（useCallbackでメモ化）
+  /**
+   * 参加キャラクターのリストをメモ化
+   * 現在の会話の参加者IDとキャラクター配列が変更された時のみ再計算
+   * getEffectiveCharacter適用で派生キャラクターを解決
+   */
+  const participantCharacters = useMemo(() => {
+    if (!getCurrentConversation) return [];
+    return getCurrentConversation.participantIds
+      .map(id => getCharacterById(id))
+      .map(c => getEffectiveCharacter(c))
+      .filter(c => c);
+  }, [getCurrentConversation, getCharacterById, getEffectiveCharacter]);
+
+  /**
+   * 会話リストを更新日時でソート（useMemoでメモ化）
+   * conversationsが変更された時のみ再ソート
+   */
+  const sortedConversations = useMemo(() => {
+    return [...conversations].sort((a, b) => new Date(b.updated) - new Date(a.updated));
+  }, [conversations]);
 
   // システムプロンプトを構築（useCallbackでメモ化）
   const buildSystemPrompt = useCallback((conversation, nextSpeakerId = null) => {
@@ -797,14 +827,22 @@ const MultiCharacterChat = () => {
     return prompt;
   }, [getCharacterById, getEffectiveCharacter]);
 
-  const createNewConversation = () => {
+  /**
+   * 新規会話作成（useCallbackでメモ化）
+   * getDefaultConversation関数が変更された時のみ再生成
+   */
+  const createNewConversation = useCallback(() => {
     const newConv = getDefaultConversation();
     setConversations(prev => [...prev, newConv]);
     setCurrentConversationId(newConv.id);
     return newConv.id;
-  };
+  }, []);
 
-  const forkConversation = (conversationId, messageIndex) => {
+  /**
+   * 会話を分岐（useCallbackでメモ化）
+   * conversationsが変更された時のみ再生成
+   */
+  const forkConversation = useCallback((conversationId, messageIndex) => {
     const originalConv = conversations.find(c => c.id === conversationId);
     if (!originalConv) return;
 
@@ -824,9 +862,13 @@ const MultiCharacterChat = () => {
     setConversations(prev => [...prev, forkedConv]);
     setCurrentConversationId(forkedConv.id);
     return forkedConv.id;
-  };
+  }, [conversations]);
 
-  const deleteConversation = (conversationId) => {
+  /**
+   * 会話削除（useCallbackでメモ化）
+   * conversations, currentConversationId, createNewConversationが変更された時のみ再生成
+   */
+  const deleteConversation = useCallback((conversationId) => {
     const conv = conversations.find(c => c.id === conversationId);
     if (!conv) return;
 
@@ -847,7 +889,7 @@ const MultiCharacterChat = () => {
       },
       onCancel: () => setConfirmDialog(null)
     });
-  };
+  }, [conversations, currentConversationId, createNewConversation]);
 
   // Character Group Management
   const createCharacterGroup = (name, characterIds) => {
@@ -1031,7 +1073,7 @@ const MultiCharacterChat = () => {
           created: new Date().toISOString(),
           updated: new Date().toISOString()
         };
-        
+
         setCharacters(prev => [...prev, newChar]);
         setError('');
       } catch (err) {
@@ -1041,6 +1083,25 @@ const MultiCharacterChat = () => {
     reader.readAsText(file);
     event.target.value = '';
   };
+
+  /**
+   * キャラクター複製（useCallbackでメモ化）
+   * charactersが変更された時のみ再生成
+   */
+  const duplicateCharacter = useCallback((charId) => {
+    const char = characters.find(c => c.id === charId);
+    if (!char) return;
+
+    const newChar = {
+      ...JSON.parse(JSON.stringify(char)),
+      id: generateId(),
+      name: `${char.name}（コピー）`,
+      created: new Date().toISOString(),
+      updated: new Date().toISOString()
+    };
+
+    setCharacters(prev => [...prev, newChar]);
+  }, [characters]);
 
   const generateConversationTitle = (messages) => {
     if (messages.length === 0) return '新しい会話';
@@ -1204,7 +1265,12 @@ const MultiCharacterChat = () => {
     }
   };
 
-  const handleSend = async () => {
+  /**
+   * メッセージ送信（useCallbackでメモ化）
+   * userPrompt, currentConversationId, messageType, nextSpeaker, getCurrentMessages,
+   * updateConversation, generateResponseが変更された時のみ再生成
+   */
+  const handleSend = useCallback(async () => {
     if (!userPrompt.trim()) return;
     if (!currentConversationId) {
       setError('会話を選択してください');
@@ -1227,14 +1293,22 @@ const MultiCharacterChat = () => {
 
     await generateResponse(newHistory, true, null, nextSpeaker);
     setNextSpeaker(null); // Reset next speaker after use
-  };
+  }, [userPrompt, currentConversationId, messageType, nextSpeaker, getCurrentMessages, updateConversation, generateResponse]);
 
-  const handleEdit = (index) => {
+  /**
+   * メッセージ編集開始（useCallbackでメモ化）
+   * getCurrentMessagesが変更された時のみ再生成
+   */
+  const handleEdit = useCallback((index) => {
     setEditingIndex(index);
     setEditingContent(getCurrentMessages[index].content);
-  };
+  }, [getCurrentMessages]);
 
-  const handleSaveEdit = (index) => {
+  /**
+   * メッセージ編集保存（useCallbackでメモ化）
+   * getCurrentMessages, editingContent, currentConversationId, updateConversationが変更された時のみ再生成
+   */
+  const handleSaveEdit = useCallback((index) => {
     const currentMessages = getCurrentMessages;
     const updated = [...currentMessages];
     updated[index].content = editingContent;
@@ -1244,37 +1318,69 @@ const MultiCharacterChat = () => {
     });
 
     setEditingIndex(null);
-  };
+  }, [getCurrentMessages, editingContent, currentConversationId, updateConversation]);
 
-  const handleDelete = (index) => {
+  /**
+   * メッセージ編集キャンセル（useCallbackでメモ化）
+   */
+  const handleCancelEdit = useCallback(() => {
+    setEditingIndex(null);
+  }, []);
+
+  /**
+   * メッセージ削除（useCallbackでメモ化）
+   * getCurrentMessages, currentConversationId, updateConversationが変更された時のみ再生成
+   */
+  const handleDelete = useCallback((index) => {
     const currentMessages = getCurrentMessages;
     const updated = currentMessages.filter((_, i) => i !== index);
 
     updateConversation(currentConversationId, {
       messages: updated
     });
-  };
+  }, [getCurrentMessages, currentConversationId, updateConversation]);
 
-  const handleFork = (index) => {
+  /**
+   * 会話分岐（useCallbackでメモ化）
+   * currentConversationId, forkConversationが変更された時のみ再生成
+   */
+  const handleFork = useCallback((index) => {
     if (!currentConversationId) return;
     forkConversation(currentConversationId, index);
-  };
+  }, [currentConversationId, forkConversation]);
 
-  const handleRegenerateFrom = async (index) => {
+  /**
+   * 指定位置から再生成（useCallbackでメモ化）
+   * getCurrentMessages, currentConversationId, updateConversation, regeneratePrefillが変更された時のみ再生成
+   */
+  const handleRegenerateFrom = useCallback(async (index) => {
     const currentMessages = getCurrentMessages;
+
+    // Prevent regenerating from index 0 which would clear all messages
+    if (index === 0) {
+      setError('最初のメッセージからは再生成できません。');
+      return;
+    }
+
     const historyUpToPoint = currentMessages.slice(0, index);
 
     updateConversation(currentConversationId, {
       messages: historyUpToPoint
     });
 
-    if (historyUpToPoint.length > 0) {
+    // Only regenerate if the last message is from user or narration (not from assistant/character)
+    if (historyUpToPoint.length > 0 && historyUpToPoint[historyUpToPoint.length - 1].role === 'user') {
       await generateResponse(historyUpToPoint, false, regeneratePrefill);
     }
 
     setRegeneratePrefill('');
     setShowRegeneratePrefill(null);
-  };
+  }, [getCurrentMessages, currentConversationId, updateConversation, regeneratePrefill, generateResponse]);
+
+  const scrollToMessage = useCallback((index) => {
+    messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setShowSidebar(false);
+  }, []);
 
   const fetchModels = async () => {
     setIsLoadingModels(true);
@@ -1825,94 +1931,26 @@ const MultiCharacterChat = () => {
             </h3>
             {conversations.length > 0 ? (
               <div className="space-y-1">
-                {conversations
-                  .sort((a, b) => new Date(b.updated) - new Date(a.updated))
-                  .map((conv) => {
+                {sortedConversations.map((conv) => {
                     const isActive = currentConversationId === conv.id;
                     return (
-                      <div
+                      <ConversationListItem
                         key={conv.id}
-                        className={`group rounded-lg transition ${
-                          isActive 
-                            ? 'bg-indigo-100 border-2 border-indigo-500' 
-                            : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
-                        }`}
-                      >
-                        <div className="flex items-start gap-2 p-2">
-                          <button
-                            onClick={() => setCurrentConversationId(conv.id)}
-                            className="flex-1 text-left min-w-0"
-                          >
-                            <div className="flex items-center gap-2 mb-1">
-                              {isActive && <Check size={12} className="text-indigo-600 flex-shrink-0" />}
-                              {editingConversationTitle === conv.id ? (
-                                <input
-                                  type="text"
-                                  value={editingTitleText}
-                                  onChange={(e) => setEditingTitleText(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === 'Enter') {
-                                      updateConversation(conv.id, { title: editingTitleText });
-                                      setEditingConversationTitle(null);
-                                    } else if (e.key === 'Escape') {
-                                      setEditingConversationTitle(null);
-                                    }
-                                  }}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onBlur={() => {
-                                    updateConversation(conv.id, { title: editingTitleText });
-                                    setEditingConversationTitle(null);
-                                  }}
-                                  autoFocus
-                                  className="flex-1 px-2 py-0.5 text-sm font-semibold border border-indigo-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                                />
-                              ) : (
-                                <span className="font-semibold text-sm truncate">{conv.title}</span>
-                              )}
-                            </div>
-                            <div className="flex items-center justify-between text-xs text-gray-500">
-                              <span>{conv.messages.length}件</span>
-                              <span className="flex items-center gap-1">
-                                <Users size={10} />
-                                {conv.participantIds.length}
-                              </span>
-                            </div>
-                          </button>
-                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition flex-shrink-0">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setEditingConversationTitle(conv.id);
-                                setEditingTitleText(conv.title);
-                              }}
-                              className="p-1 hover:bg-blue-100 rounded"
-                              title="タイトル編集"
-                            >
-                              <Edit2 size={12} className="text-blue-600" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                exportConversation(conv.id);
-                              }}
-                              className="p-1 hover:bg-green-100 rounded"
-                              title="エクスポート"
-                            >
-                              <Download size={12} className="text-green-600" />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                deleteConversation(conv.id);
-                              }}
-                              className="p-1 hover:bg-red-100 rounded"
-                              title="削除"
-                            >
-                              <Trash2 size={12} className="text-red-600" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                        conversation={conv}
+                        isActive={isActive}
+                        onSelect={setCurrentConversationId}
+                        onEditTitle={(id, title) => {
+                          setEditingConversationTitle(id);
+                          setEditingTitleText(title);
+                        }}
+                        onExport={exportConversation}
+                        onDelete={deleteConversation}
+                        editingConversationTitle={editingConversationTitle}
+                        editingTitleText={editingTitleText}
+                        setEditingTitleText={setEditingTitleText}
+                        setEditingConversationTitle={setEditingConversationTitle}
+                        updateConversation={updateConversation}
+                      />
                     );
                   })}
               </div>
@@ -1920,7 +1958,7 @@ const MultiCharacterChat = () => {
               <p className="text-sm text-gray-500">会話がありません</p>
             )}
           </>
-          ) : (
+          ) : sidebarView === 'messages' ? (
             <>
             <h3 className="font-semibold text-gray-700 mb-2 flex items-center gap-2">
               <Hash size={16} />
@@ -1935,10 +1973,7 @@ const MultiCharacterChat = () => {
                   return (
                     <button
                       key={idx}
-                      onClick={() => {
-                        messageRefs.current[idx]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                        setShowSidebar(false);
-                      }}
+                      onClick={() => scrollToMessage(idx)}
                       className={`w-full text-left px-2 py-2 rounded-lg text-xs transition ${
                         msg.type === 'user' 
                           ? 'bg-blue-50 hover:bg-blue-100 text-blue-800' 
@@ -2240,6 +2275,7 @@ const MultiCharacterChat = () => {
           exportCharacter={exportCharacter}
           importCharacter={importCharacter}
           characterFileInputRef={characterFileInputRef}
+          emotions={emotions}
           onClose={() => setShowCharacterModal(false)}
         />
       )}
@@ -2272,6 +2308,118 @@ const MultiCharacterChat = () => {
     </div>
   );
 };
+
+// ===== パフォーマンス最適化: React.memoでメモ化された会話リストアイテム =====
+/**
+ * 会話リストの個別アイテムコンポーネント
+ * conversation.id, conversation.title, conversation.updated, isActiveが変更された時のみ再レンダリング
+ */
+const ConversationListItem = React.memo(({
+  conversation,
+  isActive,
+  onSelect,
+  onEditTitle,
+  onExport,
+  onDelete,
+  editingConversationTitle,
+  editingTitleText,
+  setEditingTitleText,
+  setEditingConversationTitle,
+  updateConversation
+}) => {
+  return (
+    <div
+      className={`group rounded-lg transition ${
+        isActive
+          ? 'bg-indigo-100 border-2 border-indigo-500'
+          : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+      }`}
+    >
+      <div className="flex items-start gap-2 p-2">
+        <button
+          onClick={() => onSelect(conversation.id)}
+          className="flex-1 text-left min-w-0"
+        >
+          <div className="flex items-center gap-2 mb-1">
+            {isActive && <Check size={12} className="text-indigo-600 flex-shrink-0" />}
+            {editingConversationTitle === conversation.id ? (
+              <input
+                type="text"
+                value={editingTitleText}
+                onChange={(e) => setEditingTitleText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    updateConversation(conversation.id, { title: editingTitleText });
+                    setEditingConversationTitle(null);
+                  } else if (e.key === 'Escape') {
+                    setEditingConversationTitle(null);
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onBlur={() => {
+                  updateConversation(conversation.id, { title: editingTitleText });
+                  setEditingConversationTitle(null);
+                }}
+                autoFocus
+                className="flex-1 px-2 py-0.5 text-sm font-semibold border border-indigo-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            ) : (
+              <span className="font-semibold text-sm truncate">{conversation.title}</span>
+            )}
+          </div>
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <span>{conversation.messages.length}件</span>
+            <span className="flex items-center gap-1">
+              <Users size={10} />
+              {conversation.participantIds.length}
+            </span>
+          </div>
+        </button>
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition flex-shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditTitle(conversation.id, conversation.title);
+            }}
+            className="p-1 hover:bg-blue-100 rounded"
+            title="タイトル編集"
+          >
+            <Edit2 size={12} className="text-blue-600" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onExport(conversation.id);
+            }}
+            className="p-1 hover:bg-green-100 rounded"
+            title="エクスポート"
+          >
+            <Download size={12} className="text-green-600" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(conversation.id);
+            }}
+            className="p-1 hover:bg-red-100 rounded"
+            title="削除"
+          >
+            <Trash2 size={12} className="text-red-600" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // カスタム比較関数: 会話ID、タイトル、更新日時、アクティブ状態が同じなら再レンダリングしない
+  return prevProps.conversation.id === nextProps.conversation.id &&
+         prevProps.conversation.title === nextProps.conversation.title &&
+         prevProps.conversation.updated === nextProps.conversation.updated &&
+         prevProps.conversation.messages.length === nextProps.conversation.messages.length &&
+         prevProps.conversation.participantIds.length === nextProps.conversation.participantIds.length &&
+         prevProps.isActive === nextProps.isActive &&
+         prevProps.editingConversationTitle === nextProps.editingConversationTitle;
+});
 
 // Message Bubble Component
 // ===== パフォーマンス最適化: React.memoでメモ化されたメッセージバブル =====
@@ -2464,8 +2612,12 @@ const MessageBubble = React.memo(({
          prevProps.character?.id === nextProps.character?.id;
 });
 
-// Conversation Settings Panel Component
-const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose }) => {
+// ===== パフォーマンス最適化: React.memoでメモ化された会話設定パネル =====
+/**
+ * 会話設定パネルコンポーネント
+ * conversation.id, characters配列が変更された時のみ再レンダリング
+ */
+const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpdate, onClose }) => {
   const [localTitle, setLocalTitle] = useState(conversation.title);
   const [localBackground, setLocalBackground] = useState(conversation.backgroundInfo);
   const [localNarration, setLocalNarration] = useState(conversation.narrationEnabled);
@@ -2518,13 +2670,31 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
   };
 
   return (
-    <div className="bg-white border-b border-gray-200 p-4 space-y-4 max-h-96 overflow-y-auto">
-      <div className="flex items-center justify-between">
-        <h3 className="font-semibold text-lg text-indigo-600">会話設定</h3>
-        <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded">
-          <X size={20} />
-        </button>
-      </div>
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 overflow-y-auto"
+      style={{ zIndex: 50 }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl w-full max-w-3xl my-8 flex flex-col"
+        style={{ maxHeight: 'calc(100vh - 4rem)' }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="bg-white border-b p-4 flex items-center justify-between flex-shrink-0">
+          <h3 className="font-semibold text-xl text-indigo-600 flex items-center gap-2">
+            <Users size={24} />
+            会話設定
+          </h3>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg transition">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-4" style={{ minHeight: 0 }}>
 
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-1">会話タイトル</label>
@@ -2691,26 +2861,38 @@ const ConversationSettingsPanel = ({ conversation, characters, onUpdate, onClose
         )}
       </div>
 
-      <div className="flex gap-2 pt-2 border-t">
-        <button
-          onClick={handleSave}
-          className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium"
-        >
-          保存
-        </button>
-        <button
-          onClick={onClose}
-          className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-        >
-          キャンセル
-        </button>
+        </div>
+
+        <div className="sticky bottom-0 bg-white border-t p-4 flex gap-2 flex-shrink-0">
+          <button
+            onClick={handleSave}
+            className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 font-medium transition"
+          >
+            保存
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition"
+          >
+            キャンセル
+          </button>
+        </div>
       </div>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // カスタム比較関数: conversationとcharactersが変更された時のみ再レンダリング
+  return prevProps.conversation?.id === nextProps.conversation?.id &&
+         prevProps.conversation?.updated === nextProps.conversation?.updated &&
+         prevProps.characters.length === nextProps.characters.length;
+});
 
-// Character Modal Component (simplified version)
-const CharacterModal = ({ characters, setCharacters, characterGroups, setCharacterGroups, getDefaultCharacter, exportCharacter, importCharacter, characterFileInputRef, onClose }) => {
+// ===== パフォーマンス最適化: React.memoでメモ化されたキャラクターモーダル =====
+/**
+ * キャラクター管理モーダルコンポーネント
+ * characters配列が変更された時のみ再レンダリング
+ */
+const CharacterModal = React.memo(({ characters, setCharacters, characterGroups, setCharacterGroups, getDefaultCharacter, exportCharacter, importCharacter, characterFileInputRef, emotions, onClose }) => {
   const [editingChar, setEditingChar] = useState(null);
   const [isNew, setIsNew] = useState(false);
   const [isDerived, setIsDerived] = useState(false);
@@ -2789,6 +2971,22 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
     });
   };
 
+  const updateEditingField = (path, value) => {
+    setEditingChar(prev => {
+      const updated = { ...prev };
+      const keys = path.split('.');
+      let current = updated;
+
+      for (let i = 0; i < keys.length - 1; i++) {
+        current = current[keys[i]];
+      }
+
+      current[keys[keys.length - 1]] = value;
+
+      return updated;
+    });
+  };
+
   const handleSave = () => {
     if (isNew) {
       setCharacters(prev => [...prev, editingChar]);
@@ -2811,6 +3009,11 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
 
   const getBaseCharacter = (charId) => {
     return characters.find(c => c.id === charId);
+  };
+
+  const isOverridden = (char, field) => {
+    if (!char.baseCharacterId) return false;
+    return !!char.overrides[field];
   };
 
   const handleAvatarImageUpload = (event) => {
@@ -2893,7 +3096,8 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
 
   return (
     <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 overflow-y-auto"
+      style={{ zIndex: 50 }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           onClose();
@@ -2901,17 +3105,49 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
       }}
     >
       <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        className="bg-white rounded-lg shadow-xl w-full max-w-4xl my-8 flex flex-col"
+        style={{ maxHeight: 'calc(100vh - 4rem)' }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between">
+        <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
           <h2 className="text-xl font-bold text-indigo-600">キャラクター管理</h2>
-          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-lg">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
+            className="p-2 hover:bg-gray-100 rounded-lg"
+          >
             <X size={20} />
           </button>
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="flex border-b flex-shrink-0">
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              setEditingChar(null);
+            }}
+            className={`flex-1 px-4 py-3 font-medium ${!editingChar ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50' : 'text-gray-600 hover:bg-gray-50'}`}
+          >
+            キャラクター一覧
+          </button>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              if (editingChar) return;
+              handleCreate();
+            }}
+            className={`flex-1 px-4 py-3 font-medium ${editingChar ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50' : 'text-gray-600 hover:bg-gray-50'}`}
+          >
+            {editingChar ? '編集中' : '新規作成'}
+          </button>
+        </div>
+
+        <div className="overflow-y-auto p-4 flex-1" style={{ minHeight: 0 }}>
           {editingChar ? (
             <div className="space-y-3">
               <h3 className="font-bold text-lg flex items-center gap-2">
@@ -2961,9 +3197,14 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
                 />
               </div>
 
-              <div>
+              <div className={`${editingChar.baseCharacterId && isOverridden(editingChar, 'personality') ? 'bg-yellow-50 border-yellow-200' : ''} border rounded-lg p-3`}>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium">性格</label>
+                  <label className="block text-sm font-medium">
+                    性格
+                    {editingChar.baseCharacterId && isOverridden(editingChar, 'personality') && (
+                      <span className="ml-2 text-xs text-yellow-600">（オーバーライド中）</span>
+                    )}
+                  </label>
                   {isDerived && (
                     <label className="flex items-center gap-1 text-xs text-purple-600">
                       <input
@@ -2988,9 +3229,14 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
                 />
               </div>
 
-              <div>
+              <div className={`${editingChar.baseCharacterId && isOverridden(editingChar, 'speakingStyle') ? 'bg-yellow-50 border-yellow-200' : ''} border rounded-lg p-3`}>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium">話し方</label>
+                  <label className="block text-sm font-medium">
+                    話し方
+                    {editingChar.baseCharacterId && isOverridden(editingChar, 'speakingStyle') && (
+                      <span className="ml-2 text-xs text-yellow-600">（オーバーライド中）</span>
+                    )}
+                  </label>
                   {isDerived && (
                     <label className="flex items-center gap-1 text-xs text-purple-600">
                       <input
@@ -3016,9 +3262,14 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <div>
+                <div className={`${editingChar.baseCharacterId && isOverridden(editingChar, 'firstPerson') ? 'bg-yellow-50 border-yellow-200' : ''} border rounded-lg p-3`}>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm font-medium">一人称</label>
+                    <label className="block text-sm font-medium">
+                      一人称
+                      {editingChar.baseCharacterId && isOverridden(editingChar, 'firstPerson') && (
+                        <span className="ml-2 text-xs text-yellow-600">（上書き）</span>
+                      )}
+                    </label>
                     {isDerived && (
                       <label className="flex items-center gap-1 text-xs text-purple-600">
                         <input
@@ -3041,9 +3292,14 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
                     disabled={isDerived && !editingChar.overrides.firstPerson}
                   />
                 </div>
-                <div>
+                <div className={`${editingChar.baseCharacterId && isOverridden(editingChar, 'secondPerson') ? 'bg-yellow-50 border-yellow-200' : ''} border rounded-lg p-3`}>
                   <div className="flex items-center justify-between mb-1">
-                    <label className="block text-sm font-medium">二人称</label>
+                    <label className="block text-sm font-medium">
+                      二人称
+                      {editingChar.baseCharacterId && isOverridden(editingChar, 'secondPerson') && (
+                        <span className="ml-2 text-xs text-yellow-600">（上書き）</span>
+                      )}
+                    </label>
                     {isDerived && (
                       <label className="flex items-center gap-1 text-xs text-purple-600">
                         <input
@@ -3126,9 +3382,14 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
                 )}
               </div>
 
-              <div>
+              <div className={`${editingChar.baseCharacterId && isOverridden(editingChar, 'customPrompt') ? 'bg-yellow-50 border-yellow-200' : ''} border rounded-lg p-3`}>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="block text-sm font-medium">カスタムシステムプロンプト</label>
+                  <label className="block text-sm font-medium">
+                    カスタムシステムプロンプト
+                    {editingChar.baseCharacterId && isOverridden(editingChar, 'customPrompt') && (
+                      <span className="ml-2 text-xs text-yellow-600">（オーバーライド中）</span>
+                    )}
+                  </label>
                   {isDerived && (
                     <label className="flex items-center gap-1 text-xs text-purple-600">
                       <input
@@ -3320,79 +3581,122 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
               <div className="border-t pt-3 space-y-3">
                 <h4 className="font-semibold text-sm">機能設定</h4>
                 
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={editingChar.features.emotionEnabled}
-                    onChange={(e) => setEditingChar({
-                      ...editingChar,
-                      features: {...editingChar.features, emotionEnabled: e.target.checked}
-                    })}
-                    className="w-4 h-4"
+                    onChange={(e) => updateEditingField('features.emotionEnabled', e.target.checked)}
+                    className="w-5 h-5"
                   />
-                  <span className="text-sm">感情表示を有効化</span>
+                  <div className="flex-1">
+                    <div className="font-medium">感情表示</div>
+                    <div className="text-sm text-gray-600">会話に応じて感情を表示</div>
+                  </div>
                 </label>
 
                 {editingChar.features.emotionEnabled && (
-                  <div className="ml-6 space-y-2">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={editingChar.features.autoManageEmotion !== false}
-                        onChange={(e) => setEditingChar({
-                          ...editingChar,
-                          features: {...editingChar.features, autoManageEmotion: e.target.checked}
-                        })}
-                        className="w-4 h-4"
-                      />
-                      <span className="text-xs">AIが自動管理</span>
-                    </label>
+                  <div className="ml-8 space-y-3">
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <label className="flex items-center gap-2 mb-3">
+                        <input
+                          type="checkbox"
+                          checked={editingChar.features.autoManageEmotion !== false}
+                          onChange={(e) => updateEditingField('features.autoManageEmotion', e.target.checked)}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm font-medium text-gray-700">
+                          🤖 自動管理（AIが会話に応じて感情を変化させる）
+                        </span>
+                      </label>
+
+                      {!editingChar.features.autoManageEmotion && (
+                        <>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">手動設定: 現在の感情</label>
+                          <select
+                            value={editingChar.features.currentEmotion}
+                            onChange={(e) => updateEditingField('features.currentEmotion', e.target.value)}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                          >
+                            {Object.entries(emotions).map(([key, emotion]) => (
+                              <option key={key} value={key}>
+                                {emotion.emoji} {emotion.label}
+                              </option>
+                            ))}
+                          </select>
+                        </>
+                      )}
+
+                      {editingChar.features.autoManageEmotion !== false && (
+                        <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded">
+                          💡 現在の感情: {emotions[editingChar.features.currentEmotion]?.emoji} {emotions[editingChar.features.currentEmotion]?.label}
+                          <br />
+                          会話の内容に応じてAIが自動的に感情を変化させます
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
 
-                <label className="flex items-center gap-2">
+                <label className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={editingChar.features.affectionEnabled}
-                    onChange={(e) => setEditingChar({
-                      ...editingChar,
-                      features: {...editingChar.features, affectionEnabled: e.target.checked}
-                    })}
-                    className="w-4 h-4"
+                    onChange={(e) => updateEditingField('features.affectionEnabled', e.target.checked)}
+                    className="w-5 h-5"
                   />
-                  <span className="text-sm">好感度システムを有効化</span>
+                  <div className="flex-1">
+                    <div className="font-medium">好感度システム</div>
+                    <div className="text-sm text-gray-600">好感度を表示・管理</div>
+                  </div>
                 </label>
 
                 {editingChar.features.affectionEnabled && (
-                  <div className="ml-6 space-y-2">
-                    <label className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={editingChar.features.autoManageAffection !== false}
-                        onChange={(e) => setEditingChar({
-                          ...editingChar,
-                          features: {...editingChar.features, autoManageAffection: e.target.checked}
-                        })}
-                        className="w-4 h-4"
-                      />
-                      <span className="text-xs">AIが自動管理</span>
-                    </label>
-                    
-                    <div>
-                      <label className="block text-xs mb-1">
-                        {editingChar.features.autoManageAffection !== false ? '初期' : '現在の'}好感度: {editingChar.features.affectionLevel || 50}
+                  <div className="ml-8 space-y-3">
+                    <div className="p-3 bg-gray-50 rounded-lg">
+                      <label className="flex items-center gap-2 mb-3">
+                        <input
+                          type="checkbox"
+                          checked={editingChar.features.autoManageAffection !== false}
+                          onChange={(e) => updateEditingField('features.autoManageAffection', e.target.checked)}
+                          className="w-4 h-4"
+                        />
+                        <span className="text-sm font-medium text-gray-700">
+                          🤖 自動管理（AIが会話に応じて好感度を変化させる）
+                        </span>
                       </label>
-                      <input
-                        type="range"
-                        min="0"
-                        max="100"
-                        value={editingChar.features.affectionLevel || 50}
-                        onChange={(e) => setEditingChar({
-                          ...editingChar,
-                          features: {...editingChar.features, affectionLevel: Number(e.target.value)}
-                        })}
-                        className="w-full"
-                      />
+
+                      <div className="mb-3">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {editingChar.features.autoManageAffection !== false ? '初期好感度' : '現在の好感度'}: {editingChar.features.affectionLevel}
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={editingChar.features.affectionLevel}
+                          onChange={(e) => updateEditingField('features.affectionLevel', Number(e.target.value))}
+                          className="w-full"
+                        />
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <span>0（最低）</span>
+                          <span>50（普通）</span>
+                          <span>100（最高）</span>
+                        </div>
+                      </div>
+
+                      {editingChar.features.autoManageAffection !== false ? (
+                        <div className="text-xs text-gray-500 bg-blue-50 p-2 rounded">
+                          💡 会話開始時の好感度: {editingChar.features.affectionLevel}/100
+                          <br />
+                          会話の内容に応じてAIが自動的に好感度を変化させます
+                          <br />
+                          （ポジティブな会話で上昇、ネガティブな会話で下降）
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-500 bg-yellow-50 p-2 rounded">
+                          ⚠️ 手動モード: 好感度は固定されます
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -3488,6 +3792,13 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
                               <Layers size={16} />
                             </button>
                             <button
+                              onClick={() => duplicateCharacter(char.id)}
+                              className="p-2 text-gray-600 hover:bg-gray-50 rounded"
+                              title="複製"
+                            >
+                              <Copy size={16} />
+                            </button>
+                            <button
                               onClick={() => handleEdit(char)}
                               className="p-2 text-blue-600 hover:bg-blue-50 rounded"
                               title="編集"
@@ -3555,7 +3866,11 @@ const CharacterModal = ({ characters, setCharacters, characterGroups, setCharact
       )}
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // カスタム比較関数: charactersとcharacterGroupsが変更された時のみ再レンダリング
+  return prevProps.characters.length === nextProps.characters.length &&
+         prevProps.characterGroups.length === nextProps.characterGroups.length;
+});
 
 // Confirmation Dialog Component
 // Emoji Picker Component
