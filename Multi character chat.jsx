@@ -136,12 +136,17 @@ const IndexedDBWrapper = {
   DB_NAME: 'MultiCharacterChatDB',
   DB_VERSION: 1,
   STORE_NAME: 'appData',
+  dbInstance: null,
 
   /**
-   * データベースを開く
+   * データベースを開く（接続をキャッシュして再利用）
    * @returns {Promise<IDBDatabase>}
    */
   openDB: function() {
+    if (this.dbInstance) {
+      return Promise.resolve(this.dbInstance);
+    }
+
     return new Promise((resolve, reject) => {
       const request = indexedDB.open(this.DB_NAME, this.DB_VERSION);
 
@@ -150,7 +155,8 @@ const IndexedDBWrapper = {
       };
 
       request.onsuccess = () => {
-        resolve(request.result);
+        this.dbInstance = request.result;
+        resolve(this.dbInstance);
       };
 
       request.onupgradeneeded = (event) => {
@@ -166,114 +172,64 @@ const IndexedDBWrapper = {
   },
 
   /**
-   * データを保存
-   * @param {string} key - データのキー
-   * @param {any} value - 保存する値
-   * @returns {Promise<void>}
+   * トランザクションを実行する共通ヘルパー
+   * @param {string} mode - 'readonly' または 'readwrite'
+   * @param {function} operation - (objectStore) => IDBRequest を返す関数
+   * @param {string} errorMsg - エラー時のメッセージ
+   * @param {function} processResult - (result) => 処理結果を返す関数（オプション）
+   * @returns {Promise<any>}
    */
-  setItem: async function(key, value) {
+  executeTransaction: async function(mode, operation, errorMsg, processResult) {
     const db = await this.openDB();
     return new Promise((resolve, reject) => {
-      const transaction = db.transaction([this.STORE_NAME], 'readwrite');
+      const transaction = db.transaction([this.STORE_NAME], mode);
       const objectStore = transaction.objectStore(this.STORE_NAME);
+      const request = operation(objectStore);
 
-      const data = {
-        key: key,
-        value: value,
-        timestamp: new Date().toISOString()
-      };
-
-      const request = objectStore.put(data);
-
-      request.onsuccess = () => {
-        resolve();
-      };
-
-      request.onerror = () => {
-        reject(new Error('データの保存に失敗しました'));
-      };
-
-      transaction.oncomplete = () => {
-        db.close();
-      };
+      request.onsuccess = () => resolve(processResult ? processResult(request.result) : undefined);
+      request.onerror = () => reject(new Error(errorMsg));
     });
+  },
+
+  /**
+   * データを保存
+   */
+  setItem: async function(key, value) {
+    return this.executeTransaction('readwrite',
+      (store) => store.put({ key, value, timestamp: new Date().toISOString() }),
+      'データの保存に失敗しました'
+    );
   },
 
   /**
    * データを読み込み
-   * @param {string} key - データのキー
-   * @returns {Promise<any>}
    */
   getItem: async function(key) {
-    const db = await this.openDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([this.STORE_NAME], 'readonly');
-      const objectStore = transaction.objectStore(this.STORE_NAME);
-      const request = objectStore.get(key);
-
-      request.onsuccess = () => {
-        resolve(request.result ? request.result.value : null);
-      };
-
-      request.onerror = () => {
-        reject(new Error('データの読み込みに失敗しました'));
-      };
-
-      transaction.oncomplete = () => {
-        db.close();
-      };
-    });
+    return this.executeTransaction('readonly',
+      (store) => store.get(key),
+      'データの読み込みに失敗しました',
+      (result) => result ? result.value : null
+    );
   },
 
   /**
    * データを削除
-   * @param {string} key - データのキー
-   * @returns {Promise<void>}
    */
   removeItem: async function(key) {
-    const db = await this.openDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([this.STORE_NAME], 'readwrite');
-      const objectStore = transaction.objectStore(this.STORE_NAME);
-      const request = objectStore.delete(key);
-
-      request.onsuccess = () => {
-        resolve();
-      };
-
-      request.onerror = () => {
-        reject(new Error('データの削除に失敗しました'));
-      };
-
-      transaction.oncomplete = () => {
-        db.close();
-      };
-    });
+    return this.executeTransaction('readwrite',
+      (store) => store.delete(key),
+      'データの削除に失敗しました'
+    );
   },
 
   /**
    * すべてのデータをクリア
-   * @returns {Promise<void>}
    */
   clear: async function() {
-    const db = await this.openDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction([this.STORE_NAME], 'readwrite');
-      const objectStore = transaction.objectStore(this.STORE_NAME);
-      const request = objectStore.clear();
-
-      request.onsuccess = () => {
-        resolve();
-      };
-
-      request.onerror = () => {
-        reject(new Error('データのクリアに失敗しました'));
-      };
-
-      transaction.oncomplete = () => {
-        db.close();
-      };
-    });
+    return this.executeTransaction('readwrite',
+      (store) => store.clear(),
+      'データのクリアに失敗しました'
+    );
   },
 };
 
@@ -2077,7 +2033,6 @@ const MultiCharacterChat = () => {
             })()}
             </>
           ) : null}
-          </div>
         </div>
 
         {/* Main Content */}
