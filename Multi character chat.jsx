@@ -2033,7 +2033,6 @@ const MultiCharacterChat = () => {
             })()}
             </>
           ) : null}
-          </div>
         </div>
 
         {/* Main Content */}
