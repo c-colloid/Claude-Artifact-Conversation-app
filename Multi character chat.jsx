@@ -190,10 +190,19 @@ const IndexedDBWrapper = {
       };
 
       request.onerror = () => {
+        db.close();
         reject(new Error('データの保存に失敗しました'));
       };
 
       transaction.oncomplete = () => {
+        db.close();
+      };
+
+      transaction.onerror = () => {
+        db.close();
+      };
+
+      transaction.onabort = () => {
         db.close();
       };
     });
@@ -216,10 +225,19 @@ const IndexedDBWrapper = {
       };
 
       request.onerror = () => {
+        db.close();
         reject(new Error('データの読み込みに失敗しました'));
       };
 
       transaction.oncomplete = () => {
+        db.close();
+      };
+
+      transaction.onerror = () => {
+        db.close();
+      };
+
+      transaction.onabort = () => {
         db.close();
       };
     });
@@ -242,10 +260,19 @@ const IndexedDBWrapper = {
       };
 
       request.onerror = () => {
+        db.close();
         reject(new Error('データの削除に失敗しました'));
       };
 
       transaction.oncomplete = () => {
+        db.close();
+      };
+
+      transaction.onerror = () => {
+        db.close();
+      };
+
+      transaction.onabort = () => {
         db.close();
       };
     });
@@ -267,10 +294,19 @@ const IndexedDBWrapper = {
       };
 
       request.onerror = () => {
+        db.close();
         reject(new Error('データのクリアに失敗しました'));
       };
 
       transaction.oncomplete = () => {
+        db.close();
+      };
+
+      transaction.onerror = () => {
+        db.close();
+      };
+
+      transaction.onabort = () => {
         db.close();
       };
     });
