@@ -169,20 +169,21 @@ const IndexedDBWrapper = {
    * トランザクションを実行する共通ヘルパー
    * @param {string} mode - 'readonly' または 'readwrite'
    * @param {function} operation - (objectStore) => IDBRequest を返す関数
+   * @param {string} errorMsg - エラー時のメッセージ
    * @param {function} processResult - (result) => 処理結果を返す関数（オプション）
    * @returns {Promise<any>}
    */
-  executeTransaction: async function(mode, operation, processResult = (r) => r) {
+  executeTransaction: async function(mode, operation, errorMsg, processResult) {
     const db = await this.openDB();
     return new Promise((resolve, reject) => {
       const transaction = db.transaction([this.STORE_NAME], mode);
       const objectStore = transaction.objectStore(this.STORE_NAME);
       const request = operation(objectStore);
 
-      request.onsuccess = () => resolve(processResult(request.result));
+      request.onsuccess = () => resolve(processResult ? processResult(request.result) : undefined);
       request.onerror = () => {
         db.close();
-        reject(request.error);
+        reject(new Error(errorMsg));
       };
 
       transaction.oncomplete = () => db.close();
@@ -195,8 +196,9 @@ const IndexedDBWrapper = {
    * データを保存
    */
   setItem: async function(key, value) {
-    return this.executeTransaction('readwrite', (store) =>
-      store.put({ key, value, timestamp: new Date().toISOString() })
+    return this.executeTransaction('readwrite',
+      (store) => store.put({ key, value, timestamp: new Date().toISOString() }),
+      'データの保存に失敗しました'
     );
   },
 
@@ -204,8 +206,10 @@ const IndexedDBWrapper = {
    * データを読み込み
    */
   getItem: async function(key) {
-    return this.executeTransaction('readonly', (store) =>
-      store.get(key), (result) => result ? result.value : null
+    return this.executeTransaction('readonly',
+      (store) => store.get(key),
+      'データの読み込みに失敗しました',
+      (result) => result ? result.value : null
     );
   },
 
@@ -213,14 +217,20 @@ const IndexedDBWrapper = {
    * データを削除
    */
   removeItem: async function(key) {
-    return this.executeTransaction('readwrite', (store) => store.delete(key));
+    return this.executeTransaction('readwrite',
+      (store) => store.delete(key),
+      'データの削除に失敗しました'
+    );
   },
 
   /**
    * すべてのデータをクリア
    */
   clear: async function() {
-    return this.executeTransaction('readwrite', (store) => store.clear());
+    return this.executeTransaction('readwrite',
+      (store) => store.clear(),
+      'データのクリアに失敗しました'
+    );
   },
 };
 
