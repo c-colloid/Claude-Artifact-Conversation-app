@@ -1190,10 +1190,12 @@ const MultiCharacterChat = () => {
       }
 
       const finalMessages = [...mergedMessages];
-      
-      const prefillToUse = customPrefill !== null ? customPrefill : (usePrefill ? prefillText : '');
-      
-      if (prefillToUse.trim()) {
+
+      // プリフィルテキストを取得し、末尾の空白を削除
+      let prefillToUse = customPrefill !== null ? customPrefill : (usePrefill ? prefillText : '');
+      prefillToUse = prefillToUse.trimEnd();
+
+      if (prefillToUse) {
         finalMessages.push({
           role: 'assistant',
           content: prefillToUse
@@ -1252,7 +1254,7 @@ const MultiCharacterChat = () => {
         }
       });
 
-      const fullContent = prefillToUse.trim()
+      const fullContent = prefillToUse
         ? prefillToUse + textContent
         : textContent;
 
@@ -1453,18 +1455,19 @@ const MultiCharacterChat = () => {
 
     // targetMessageの開始タグを追加
     if (targetMessage.type === 'narration') {
-      prefillParts.push('[NARRATION]\n');
+      prefillParts.push('[NARRATION]');
     } else if (targetMessage.type === 'character') {
       const char = getCharacterById(targetMessage.characterId);
-      prefillParts.push(`[CHARACTER:${char?.name}]\n`);
+      prefillParts.push(`[CHARACTER:${char?.name}]`);
     }
 
     // ユーザーのカスタムプリフィルを追加
     if (regeneratePrefill) {
-      prefillParts[prefillParts.length - 1] += regeneratePrefill;
+      prefillParts[prefillParts.length - 1] += '\n' + regeneratePrefill;
     }
 
-    const prefill = prefillParts.join('\n\n');
+    // プリフィルテキストを結合し、末尾の空白を削除
+    const prefill = prefillParts.join('\n\n').trimEnd();
 
     // 一時的にメッセージを削除（targetMessage以降の同じグループを削除）
     const updatedMessages = currentMessages.filter((msg, i) => {
@@ -1505,7 +1508,8 @@ const MultiCharacterChat = () => {
 
     // Only regenerate if the last message is from user
     if (historyUpToPoint.length > 0 && historyUpToPoint[historyUpToPoint.length - 1].role === 'user') {
-      await generateResponse(historyUpToPoint, false, regeneratePrefill);
+      const trimmedPrefill = regeneratePrefill.trimEnd();
+      await generateResponse(historyUpToPoint, false, trimmedPrefill);
     }
 
     setRegeneratePrefill('');
