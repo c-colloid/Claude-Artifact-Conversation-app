@@ -762,22 +762,30 @@ const MultiCharacterChat = () => {
       prompt += `\n`;
     }
 
-    prompt += `## 重要な指示\n`;
+    prompt += `## 重要な指示\n\n`;
+    prompt += `**タグの使用は必須です。以下のルールを厳密に守ってください:**\n\n`;
 
     // If next speaker is specified
     if (nextSpeakerId) {
       const nextChar = participants.find(c => c.id === nextSpeakerId);
       if (nextChar) {
         prompt += `1. **次は${nextChar.name}として発言してください**\n`;
-        prompt += `2. 発言の最初に [CHARACTER:${nextChar.name}] を必ず出力してください\n`;
+        prompt += `2. **[CHARACTER:${nextChar.name}] タグを行の先頭に必ず出力してください**\n`;
+        prompt += `   - タグの後に改行してから発言内容を書いてください\n`;
+        prompt += `   - タグと発言内容を同じ行に書かないでください\n`;
       }
     } else {
       prompt += `1. 次に発言すべきキャラクターを判断し、そのキャラクターとして発言してください\n`;
-      prompt += `2. 発言の最初に [CHARACTER:キャラクター名] を必ず出力してください\n`;
+      prompt += `2. **[CHARACTER:キャラクター名] タグを行の先頭に必ず出力してください**\n`;
+      prompt += `   - タグの後に改行してから発言内容を書いてください\n`;
+      prompt += `   - タグと発言内容を同じ行に書かないでください\n`;
     }
 
-    prompt += `3. 各キャラクターの個性を維持し、自然な会話の流れを作ってください\n`;
-    prompt += `4. 一人称・二人称は各キャラクターの設定に従ってください\n`;
+    prompt += `3. **複数のキャラクターが発言する場合**\n`;
+    prompt += `   - 各キャラクターの発言の前に必ず [CHARACTER:キャラクター名] タグを付けてください\n`;
+    prompt += `   - キャラクター間の発言は空行で区切ってください\n`;
+    prompt += `4. 各キャラクターの個性を維持し、自然な会話の流れを作ってください\n`;
+    prompt += `5. 一人称・二人称は各キャラクターの設定に従ってください\n`;
 
     // Add emotion/affection instructions for characters with these features enabled
     const hasAutoEmotion = participants.some(c => c.features.emotionEnabled && c.features.autoManageEmotion);
@@ -807,9 +815,28 @@ const MultiCharacterChat = () => {
       }
     }
 
-    prompt += `\n例:\n`;
-    prompt += `[CHARACTER:${participants[0]?.name || 'キャラクター名'}]\n`;
-    prompt += `${participants[0]?.definition.firstPerson || '私'}も同じ意見だよ!\n`;
+    prompt += `\n## 出力形式の例\n\n`;
+    prompt += `**単一キャラクターの発言:**\n`;
+    prompt += `[CHARACTER:${participants[0]?.name || 'アリス'}]\n`;
+    prompt += `${participants[0]?.definition.firstPerson || '私'}も同じ意見だよ!\n\n`;
+
+    if (participants.length > 1) {
+      prompt += `**複数キャラクターの発言:**\n`;
+      prompt += `[CHARACTER:${participants[0]?.name || 'アリス'}]\n`;
+      prompt += `そうだね、行こうか！\n\n`;
+      prompt += `[CHARACTER:${participants[1]?.name || 'ボブ'}]\n`;
+      prompt += `いいアイデアだね！\n\n`;
+    }
+
+    if (conversation.narrationEnabled) {
+      prompt += `**地の文を含む場合:**\n`;
+      prompt += `[NARRATION]\n`;
+      prompt += `二人は笑顔で頷き合った。窓の外では、春の陽気な光が差し込んでいる。\n\n`;
+      prompt += `[CHARACTER:${participants[0]?.name || 'アリス'}]\n`;
+      prompt += `じゃあ、準備しようか！\n\n`;
+    }
+
+    prompt += `\n**重要: 必ず各発言の前にタグを付け、タグと内容は改行で分けてください。**\n`;
 
     return prompt;
   }, [getCharacterById, getEffectiveCharacter]);
@@ -833,6 +860,16 @@ const MultiCharacterChat = () => {
     const originalConv = conversations.find(c => c.id === conversationId);
     if (!originalConv) return;
 
+    // メッセージ配列が存在し、messageIndexが有効範囲内であることを確認
+    const originalMessages = originalConv.messages || [];
+    if (messageIndex < 0 || messageIndex >= originalMessages.length) {
+      console.error(`Invalid messageIndex: ${messageIndex}, messages length: ${originalMessages.length}`);
+      return;
+    }
+
+    // 分岐点までのメッセージをディープコピー
+    const forkedMessages = originalMessages.slice(0, messageIndex + 1).map(msg => ({...msg}));
+
     const forkedConv = {
       ...getDefaultConversation(),
       title: `${originalConv.title}（分岐${messageIndex + 1}）`,
@@ -843,7 +880,7 @@ const MultiCharacterChat = () => {
       relationships: originalConv.relationships ? [...originalConv.relationships] : [],
       parentConversationId: conversationId,
       forkPoint: messageIndex,
-      messages: originalConv.messages.slice(0, messageIndex + 1)
+      messages: forkedMessages
     };
 
     setConversations(prev => [...prev, forkedConv]);
@@ -1368,8 +1405,13 @@ const MultiCharacterChat = () => {
     const currentMessages = getAllMessages;
     const targetMessage = currentMessages[index];
 
-    if (!targetMessage || targetMessage.role !== 'assistant') {
-      setError('アシスタントメッセージのみ再生成できます。');
+    if (!targetMessage) {
+      setError('メッセージが見つかりません。');
+      return;
+    }
+
+    if (targetMessage.role !== 'assistant') {
+      setError(`アシスタントメッセージのみ再生成できます。（現在のロール: ${targetMessage.role || 'なし'}、タイプ: ${targetMessage.type || 'なし'}）`);
       return;
     }
 
@@ -4213,7 +4255,7 @@ const EmojiPicker = ({ onSelect, onClose }) => {
 const ImageCropper = ({ imageSrc, onCrop, onCancel }) => {
   const canvasRef = useRef(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(0.5);
+  const [zoom, setZoom] = useState(1.0);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
@@ -4246,8 +4288,12 @@ const ImageCropper = ({ imageSrc, onCrop, onCancel }) => {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvasSize, canvasSize);
 
-    // Calculate image dimensions
-    const scale = zoom;
+    // Calculate base scale to fit image in canvas
+    const maxDimension = Math.max(imageSize.width, imageSize.height);
+    const baseScale = canvasSize / maxDimension;
+
+    // Apply user zoom on top of base scale
+    const scale = baseScale * zoom;
     const imgWidth = imageSize.width * scale;
     const imgHeight = imageSize.height * scale;
 
@@ -4311,7 +4357,12 @@ const ImageCropper = ({ imageSrc, onCrop, onCancel }) => {
     const centerX = canvasSize / 2;
     const centerY = canvasSize / 2;
 
-    const scale = zoom;
+    // Calculate base scale to fit image in canvas
+    const maxDimension = Math.max(imageSize.width, imageSize.height);
+    const baseScale = canvasSize / maxDimension;
+
+    // Apply user zoom on top of base scale
+    const scale = baseScale * zoom;
     const imgWidth = imageSize.width * scale;
     const imgHeight = imageSize.height * scale;
 
