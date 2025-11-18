@@ -2887,6 +2887,7 @@ const MessageBubble = React.memo(({
          prevProps.editingIndex === nextProps.editingIndex &&
          prevProps.editingContent === nextProps.editingContent &&
          prevProps.showRegeneratePrefill === nextProps.showRegeneratePrefill &&
+         prevProps.regeneratePrefill === nextProps.regeneratePrefill &&
          prevProps.showVersions?.[nextProps.index] === nextProps.showVersions?.[nextProps.index] &&
          prevProps.character?.id === nextProps.character?.id;
 });
