@@ -2878,13 +2878,19 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
     debouncedSearch(searchQuery);
   }, [searchQuery, debouncedSearch]);
 
-  const filteredCharacters = characters.filter(char => {
-    if (!debouncedSearchQuery) return true;
-    const query = debouncedSearchQuery.toLowerCase();
-    return char.name.toLowerCase().includes(query) ||
-           char.definition.personality?.toLowerCase().includes(query) ||
-           char.definition.background?.toLowerCase().includes(query);
-  });
+  /**
+   * フィルタリングされたキャラクターリスト
+   * charactersまたは検索クエリが変更されたら再計算される
+   */
+  const filteredCharacters = useMemo(() => {
+    return characters.filter(char => {
+      if (!debouncedSearchQuery) return true;
+      const query = debouncedSearchQuery.toLowerCase();
+      return char.name.toLowerCase().includes(query) ||
+             char.definition.personality?.toLowerCase().includes(query) ||
+             char.definition.background?.toLowerCase().includes(query);
+    });
+  }, [characters, debouncedSearchQuery]);
 
   const handleCreate = () => {
     const newChar = getDefaultCharacter();
