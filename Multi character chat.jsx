@@ -1546,9 +1546,26 @@ const MultiCharacterChat = () => {
   }, [getAllMessages, currentConversationId, updateConversation]);
 
   const scrollToMessage = useCallback((index) => {
-    messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // メッセージが表示範囲外の場合、visibleMessageCountを調整
+    const totalMessages = getAllMessages.length;
+    const currentStartIndex = totalMessages <= visibleMessageCount ? 0 : totalMessages - visibleMessageCount;
+
+    if (index < currentStartIndex) {
+      // メッセージが表示範囲より前にある場合、表示範囲を拡張
+      const newVisibleCount = totalMessages - index;
+      setVisibleMessageCount(newVisibleCount);
+
+      // 少し遅延させてからスクロール（DOM更新を待つ）
+      setTimeout(() => {
+        messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    } else {
+      // メッセージが表示範囲内にある場合、即座にスクロール
+      messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
     setShowSidebar(false);
-  }, []);
+  }, [getAllMessages.length, visibleMessageCount]);
 
   const fetchModels = async () => {
     setIsLoadingModels(true);
