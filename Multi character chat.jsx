@@ -2294,7 +2294,9 @@ const MultiCharacterChat = () => {
 
           {getVisibleMessages.map((message, visibleIndex) => {
             // 実際のインデックスを計算（全メッセージ配列での位置）
-            const actualIndex = getAllMessages.length - visibleMessageCount + visibleIndex;
+            // visibleMessageCountより少ない場合は0から、多い場合は適切なオフセットを計算
+            const startIndex = getAllMessages.length <= visibleMessageCount ? 0 : getAllMessages.length - visibleMessageCount;
+            const actualIndex = startIndex + visibleIndex;
             return (
             <div key={actualIndex} ref={(el) => messageRefs.current[actualIndex] = el}>
             <MessageBubble
