@@ -2623,7 +2623,8 @@ const ConversationListItem = React.memo(({
          prevProps.conversation.messages.length === nextProps.conversation.messages.length &&
          prevProps.conversation.participantIds.length === nextProps.conversation.participantIds.length &&
          prevProps.isActive === nextProps.isActive &&
-         prevProps.editingConversationTitle === nextProps.editingConversationTitle;
+         prevProps.editingConversationTitle === nextProps.editingConversationTitle &&
+         prevProps.editingTitleText === nextProps.editingTitleText;
 });
 
 // Message Bubble Component
@@ -2884,6 +2885,7 @@ const MessageBubble = React.memo(({
   return prevProps.message.content === nextProps.message.content &&
          prevProps.message.timestamp === nextProps.message.timestamp &&
          prevProps.editingIndex === nextProps.editingIndex &&
+         prevProps.editingContent === nextProps.editingContent &&
          prevProps.showRegeneratePrefill === nextProps.showRegeneratePrefill &&
          prevProps.showVersions?.[nextProps.index] === nextProps.showVersions?.[nextProps.index] &&
          prevProps.character?.id === nextProps.character?.id;
