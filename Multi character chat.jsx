@@ -1191,9 +1191,9 @@ const MultiCharacterChat = () => {
 
       const finalMessages = [...mergedMessages];
 
-      // プリフィルテキストを取得し、末尾の空白を削除
+      // プリフィルテキストを取得し、前後の空白を削除
       let prefillToUse = customPrefill !== null ? customPrefill : (usePrefill ? prefillText : '');
-      prefillToUse = prefillToUse.trimEnd();
+      prefillToUse = prefillToUse.trim();
 
       if (prefillToUse) {
         finalMessages.push({
@@ -1466,8 +1466,8 @@ const MultiCharacterChat = () => {
       prefillParts[prefillParts.length - 1] += regeneratePrefill;
     }
 
-    // プリフィルテキストを結合し、末尾の空白のみ削除（途中の改行は保持）
-    const prefill = prefillParts.join('\n\n').trimEnd();
+    // プリフィルテキストを結合し、前後の空白を削除（途中の改行は保持）
+    const prefill = prefillParts.join('\n\n').trim();
 
     // 一時的にメッセージを削除（targetMessage以降の同じグループを削除）
     const updatedMessages = currentMessages.filter((msg, i) => {
@@ -1508,7 +1508,7 @@ const MultiCharacterChat = () => {
 
     // Only regenerate if the last message is from user
     if (historyUpToPoint.length > 0 && historyUpToPoint[historyUpToPoint.length - 1].role === 'user') {
-      const trimmedPrefill = regeneratePrefill.trimEnd();
+      const trimmedPrefill = regeneratePrefill.trim();
       await generateResponse(historyUpToPoint, false, trimmedPrefill);
     }
 
