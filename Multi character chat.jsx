@@ -4349,12 +4349,12 @@ const ImageCropper = ({ imageSrc, onCrop, onCancel }) => {
     ctx.stroke();
   };
 
-  const handleMouseDown = (e) => {
+  const handlePointerDown = (e) => {
     setIsDragging(true);
     setDragStart({ x: e.clientX - crop.x, y: e.clientY - crop.y });
   };
 
-  const handleMouseMove = (e) => {
+  const handlePointerMove = (e) => {
     if (!isDragging) return;
     setCrop({
       x: e.clientX - dragStart.x,
@@ -4362,7 +4362,7 @@ const ImageCropper = ({ imageSrc, onCrop, onCancel }) => {
     });
   };
 
-  const handleMouseUp = () => {
+  const handlePointerUp = () => {
     setIsDragging(false);
   };
 
@@ -4456,10 +4456,10 @@ const ImageCropper = ({ imageSrc, onCrop, onCancel }) => {
               width={400}
               height={400}
               className="w-full h-auto border border-gray-300 rounded-lg cursor-move"
-              onMouseDown={handleMouseDown}
-              onMouseMove={handleMouseMove}
-              onMouseUp={handleMouseUp}
-              onMouseLeave={handleMouseUp}
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerLeave={handlePointerUp}
             />
           </div>
 
