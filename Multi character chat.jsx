@@ -2859,6 +2859,7 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
   const [showImageCropper, setShowImageCropper] = useState(false);
   const [uploadedImage, setUploadedImage] = useState(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [lastSavedCharacterId, setLastSavedCharacterId] = useState(null);
   const avatarImageInputRef = useRef(null);
 
   /**
@@ -2877,13 +2878,19 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
     debouncedSearch(searchQuery);
   }, [searchQuery, debouncedSearch]);
 
-  const filteredCharacters = characters.filter(char => {
-    if (!debouncedSearchQuery) return true;
-    const query = debouncedSearchQuery.toLowerCase();
-    return char.name.toLowerCase().includes(query) ||
-           char.definition.personality?.toLowerCase().includes(query) ||
-           char.definition.background?.toLowerCase().includes(query);
-  });
+  /**
+   * フィルタリングされたキャラクターリスト
+   * charactersまたは検索クエリが変更されたら再計算される
+   */
+  const filteredCharacters = useMemo(() => {
+    return characters.filter(char => {
+      if (!debouncedSearchQuery) return true;
+      const query = debouncedSearchQuery.toLowerCase();
+      return char.name.toLowerCase().includes(query) ||
+             char.definition.personality?.toLowerCase().includes(query) ||
+             char.definition.background?.toLowerCase().includes(query);
+    });
+  }, [characters, debouncedSearchQuery]);
 
   const handleCreate = () => {
     const newChar = getDefaultCharacter();
@@ -2943,6 +2950,7 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
   };
 
   const handleSave = () => {
+    const savedCharId = editingChar.id;
     if (isNew) {
       setCharacters(prev => [...prev, editingChar]);
     } else {
@@ -2951,6 +2959,12 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
     setEditingChar(null);
     setIsNew(false);
     setIsDerived(false);
+
+    // 保存成功のフィードバックを表示
+    setLastSavedCharacterId(savedCharId);
+    setTimeout(() => {
+      setLastSavedCharacterId(null);
+    }, 3000);
   };
 
   const handleDelete = (charId) => {
@@ -3053,11 +3067,6 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
     <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 overflow-y-auto"
       style={{ zIndex: 50 }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
-      }}
     >
       <div
         className="bg-white rounded-lg shadow-xl w-full max-w-4xl my-8 flex flex-col"
@@ -3720,14 +3729,26 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
                 ) : (
                   filteredCharacters.map(char => {
                     const baseChar = char.baseCharacterId ? getBaseCharacter(char.baseCharacterId) : null;
+                    const isRecentlySaved = char.id === lastSavedCharacterId;
                     return (
-                      <div key={char.id} className="border rounded-lg p-3">
+                      <div
+                        key={char.id}
+                        className={`border rounded-lg p-3 transition-colors duration-300 ${
+                          isRecentlySaved ? 'bg-green-50 border-green-300 shadow-md' : ''
+                        }`}
+                      >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3 flex-1 min-w-0">
                             <AvatarDisplay character={char} size="md" />
                             <div className="min-w-0 flex-1">
                               <div className="font-semibold flex items-center gap-2">
                                 {char.name}
+                                {isRecentlySaved && (
+                                  <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded flex items-center gap-1 animate-pulse">
+                                    <Check size={10} />
+                                    保存済み
+                                  </span>
+                                )}
                                 {baseChar && (
                                   <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded flex items-center gap-1">
                                     <Layers size={10} />
