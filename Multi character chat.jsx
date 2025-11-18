@@ -749,8 +749,8 @@ const MultiCharacterChat = () => {
     if (conversation.relationships && conversation.relationships.length > 0) {
       prompt += `## キャラクター間の関係性\n`;
       conversation.relationships.forEach((rel) => {
-        const char1 = participants.find(c => c.id === rel.char1Id);
-        const char2 = participants.find(c => c.id === rel.char2Id);
+        const char1 = rel.char1Id === '__user__' ? { name: 'ユーザー' } : participants.find(c => c.id === rel.char1Id);
+        const char2 = rel.char2Id === '__user__' ? { name: 'ユーザー' } : participants.find(c => c.id === rel.char2Id);
         if (char1 && char2) {
           prompt += `- ${char1.name} と ${char2.name}: ${rel.type}`;
           if (rel.description) {
@@ -762,22 +762,30 @@ const MultiCharacterChat = () => {
       prompt += `\n`;
     }
 
-    prompt += `## 重要な指示\n`;
+    prompt += `## 重要な指示\n\n`;
+    prompt += `**タグの使用は必須です。以下のルールを厳密に守ってください:**\n\n`;
 
     // If next speaker is specified
     if (nextSpeakerId) {
       const nextChar = participants.find(c => c.id === nextSpeakerId);
       if (nextChar) {
         prompt += `1. **次は${nextChar.name}として発言してください**\n`;
-        prompt += `2. 発言の最初に [CHARACTER:${nextChar.name}] を必ず出力してください\n`;
+        prompt += `2. **[CHARACTER:${nextChar.name}] タグを行の先頭に必ず出力してください**\n`;
+        prompt += `   - タグの後に改行してから発言内容を書いてください\n`;
+        prompt += `   - タグと発言内容を同じ行に書かないでください\n`;
       }
     } else {
       prompt += `1. 次に発言すべきキャラクターを判断し、そのキャラクターとして発言してください\n`;
-      prompt += `2. 発言の最初に [CHARACTER:キャラクター名] を必ず出力してください\n`;
+      prompt += `2. **[CHARACTER:キャラクター名] タグを行の先頭に必ず出力してください**\n`;
+      prompt += `   - タグの後に改行してから発言内容を書いてください\n`;
+      prompt += `   - タグと発言内容を同じ行に書かないでください\n`;
     }
 
-    prompt += `3. 各キャラクターの個性を維持し、自然な会話の流れを作ってください\n`;
-    prompt += `4. 一人称・二人称は各キャラクターの設定に従ってください\n`;
+    prompt += `3. **複数のキャラクターが発言する場合**\n`;
+    prompt += `   - 各キャラクターの発言の前に必ず [CHARACTER:キャラクター名] タグを付けてください\n`;
+    prompt += `   - キャラクター間の発言は空行で区切ってください\n`;
+    prompt += `4. 各キャラクターの個性を維持し、自然な会話の流れを作ってください\n`;
+    prompt += `5. 一人称・二人称は各キャラクターの設定に従ってください\n`;
 
     // Add emotion/affection instructions for characters with these features enabled
     const hasAutoEmotion = participants.some(c => c.features.emotionEnabled && c.features.autoManageEmotion);
@@ -807,9 +815,28 @@ const MultiCharacterChat = () => {
       }
     }
 
-    prompt += `\n例:\n`;
-    prompt += `[CHARACTER:${participants[0]?.name || 'キャラクター名'}]\n`;
-    prompt += `${participants[0]?.definition.firstPerson || '私'}も同じ意見だよ!\n`;
+    prompt += `\n## 出力形式の例\n\n`;
+    prompt += `**単一キャラクターの発言:**\n`;
+    prompt += `[CHARACTER:${participants[0]?.name || 'アリス'}]\n`;
+    prompt += `${participants[0]?.definition.firstPerson || '私'}も同じ意見だよ!\n\n`;
+
+    if (participants.length > 1) {
+      prompt += `**複数キャラクターの発言:**\n`;
+      prompt += `[CHARACTER:${participants[0]?.name || 'アリス'}]\n`;
+      prompt += `そうだね、行こうか！\n\n`;
+      prompt += `[CHARACTER:${participants[1]?.name || 'ボブ'}]\n`;
+      prompt += `いいアイデアだね！\n\n`;
+    }
+
+    if (conversation.narrationEnabled) {
+      prompt += `**地の文を含む場合:**\n`;
+      prompt += `[NARRATION]\n`;
+      prompt += `二人は笑顔で頷き合った。窓の外では、春の陽気な光が差し込んでいる。\n\n`;
+      prompt += `[CHARACTER:${participants[0]?.name || 'アリス'}]\n`;
+      prompt += `じゃあ、準備しようか！\n\n`;
+    }
+
+    prompt += `\n**重要: 必ず各発言の前にタグを付け、タグと内容は改行で分けてください。**\n`;
 
     return prompt;
   }, [getCharacterById, getEffectiveCharacter]);
@@ -833,6 +860,16 @@ const MultiCharacterChat = () => {
     const originalConv = conversations.find(c => c.id === conversationId);
     if (!originalConv) return;
 
+    // メッセージ配列が存在し、messageIndexが有効範囲内であることを確認
+    const originalMessages = originalConv.messages || [];
+    if (messageIndex < 0 || messageIndex >= originalMessages.length) {
+      console.error(`Invalid messageIndex: ${messageIndex}, messages length: ${originalMessages.length}`);
+      return;
+    }
+
+    // 分岐点までのメッセージをディープコピー
+    const forkedMessages = originalMessages.slice(0, messageIndex + 1).map(msg => ({...msg}));
+
     const forkedConv = {
       ...getDefaultConversation(),
       title: `${originalConv.title}（分岐${messageIndex + 1}）`,
@@ -843,13 +880,13 @@ const MultiCharacterChat = () => {
       relationships: originalConv.relationships ? [...originalConv.relationships] : [],
       parentConversationId: conversationId,
       forkPoint: messageIndex,
-      messages: originalConv.messages.slice(0, messageIndex + 1)
+      messages: forkedMessages
     };
 
     setConversations(prev => [...prev, forkedConv]);
     setCurrentConversationId(forkedConv.id);
     return forkedConv.id;
-  }, [conversations]);
+  }, [conversations, getDefaultConversation]);
 
   /**
    * 会話削除（useCallbackでメモ化）
@@ -1153,10 +1190,12 @@ const MultiCharacterChat = () => {
       }
 
       const finalMessages = [...mergedMessages];
-      
-      const prefillToUse = customPrefill !== null ? customPrefill : (usePrefill ? prefillText : '');
-      
-      if (prefillToUse.trim()) {
+
+      // プリフィルテキストを取得し、末尾の空白を削除
+      let prefillToUse = customPrefill !== null ? customPrefill : (usePrefill ? prefillText : '');
+      prefillToUse = prefillToUse.trimEnd();
+
+      if (prefillToUse) {
         finalMessages.push({
           role: 'assistant',
           content: prefillToUse
@@ -1215,7 +1254,7 @@ const MultiCharacterChat = () => {
         }
       });
 
-      const fullContent = prefillToUse.trim()
+      const fullContent = prefillToUse
         ? prefillToUse + textContent
         : textContent;
 
@@ -1309,15 +1348,15 @@ const MultiCharacterChat = () => {
    */
   const handleEdit = useCallback((index) => {
     setEditingIndex(index);
-    setEditingContent(getCurrentMessages[index].content);
-  }, [getCurrentMessages]);
+    setEditingContent(getAllMessages[index].content);
+  }, [getAllMessages]);
 
   /**
    * メッセージ編集保存（useCallbackでメモ化）
-   * getCurrentMessages, editingContent, currentConversationId, updateConversationが変更された時のみ再生成
+   * getAllMessages, editingContent, currentConversationId, updateConversationが変更された時のみ再生成
    */
   const handleSaveEdit = useCallback((index) => {
-    const currentMessages = getCurrentMessages;
+    const currentMessages = getAllMessages;
     const updated = [...currentMessages];
     updated[index].content = editingContent;
 
@@ -1326,7 +1365,7 @@ const MultiCharacterChat = () => {
     });
 
     setEditingIndex(null);
-  }, [getCurrentMessages, editingContent, currentConversationId, updateConversation]);
+  }, [getAllMessages, editingContent, currentConversationId, updateConversation]);
 
   /**
    * メッセージ編集キャンセル（useCallbackでメモ化）
@@ -1337,16 +1376,16 @@ const MultiCharacterChat = () => {
 
   /**
    * メッセージ削除（useCallbackでメモ化）
-   * getCurrentMessages, currentConversationId, updateConversationが変更された時のみ再生成
+   * getAllMessages, currentConversationId, updateConversationが変更された時のみ再生成
    */
   const handleDelete = useCallback((index) => {
-    const currentMessages = getCurrentMessages;
+    const currentMessages = getAllMessages;
     const updated = currentMessages.filter((_, i) => i !== index);
 
     updateConversation(currentConversationId, {
       messages: updated
     });
-  }, [getCurrentMessages, currentConversationId, updateConversation]);
+  }, [getAllMessages, currentConversationId, updateConversation]);
 
   /**
    * 会話分岐（useCallbackでメモ化）
@@ -1359,17 +1398,22 @@ const MultiCharacterChat = () => {
 
   /**
    * 指定位置から再生成（useCallbackでメモ化）
-   * getCurrentMessages, currentConversationId, updateConversation, regeneratePrefillが変更された時のみ再生成
+   * getAllMessages, currentConversationId, updateConversation, regeneratePrefillが変更された時のみ再生成
    */
   /**
    * グループ内再生成（同じAPI呼び出しグループ内のこのバブル以降を再生成）
    */
   const handleRegenerateGroup = useCallback(async (index) => {
-    const currentMessages = getCurrentMessages;
+    const currentMessages = getAllMessages;
     const targetMessage = currentMessages[index];
 
-    if (!targetMessage || targetMessage.role !== 'assistant') {
-      setError('アシスタントメッセージのみ再生成できます。');
+    if (!targetMessage) {
+      setError('メッセージが見つかりません。');
+      return;
+    }
+
+    if (targetMessage.role !== 'assistant') {
+      setError(`アシスタントメッセージのみ再生成できます。（現在のロール: ${targetMessage.role || 'なし'}、タイプ: ${targetMessage.type || 'なし'}）`);
       return;
     }
 
@@ -1422,7 +1466,8 @@ const MultiCharacterChat = () => {
       prefillParts[prefillParts.length - 1] += regeneratePrefill;
     }
 
-    const prefill = prefillParts.join('\n\n');
+    // プリフィルテキストを結合し、末尾の空白のみ削除（途中の改行は保持）
+    const prefill = prefillParts.join('\n\n').trimEnd();
 
     // 一時的にメッセージを削除（targetMessage以降の同じグループを削除）
     const updatedMessages = currentMessages.filter((msg, i) => {
@@ -1441,13 +1486,13 @@ const MultiCharacterChat = () => {
 
     setRegeneratePrefill('');
     setShowRegeneratePrefill(null);
-  }, [getCurrentMessages, currentConversationId, updateConversation, regeneratePrefill, generateResponse, getCharacterById]);
+  }, [getAllMessages, currentConversationId, updateConversation, regeneratePrefill, generateResponse, getCharacterById]);
 
   /**
    * 全体再生成（このバブル以降の全メッセージを再生成）
    */
   const handleRegenerateFrom = useCallback(async (index) => {
-    const currentMessages = getCurrentMessages;
+    const currentMessages = getAllMessages;
 
     // Prevent regenerating from index 0 which would clear all messages
     if (index === 0) {
@@ -1463,18 +1508,19 @@ const MultiCharacterChat = () => {
 
     // Only regenerate if the last message is from user
     if (historyUpToPoint.length > 0 && historyUpToPoint[historyUpToPoint.length - 1].role === 'user') {
-      await generateResponse(historyUpToPoint, false, regeneratePrefill);
+      const trimmedPrefill = regeneratePrefill.trimEnd();
+      await generateResponse(historyUpToPoint, false, trimmedPrefill);
     }
 
     setRegeneratePrefill('');
     setShowRegeneratePrefill(null);
-  }, [getCurrentMessages, currentConversationId, updateConversation, regeneratePrefill, generateResponse]);
+  }, [getAllMessages, currentConversationId, updateConversation, regeneratePrefill, generateResponse]);
 
   /**
    * バージョン切り替え
    */
   const handleSwitchVersion = useCallback((messageIndex, alternativeId) => {
-    const currentMessages = getCurrentMessages;
+    const currentMessages = getAllMessages;
     const message = currentMessages[messageIndex];
 
     if (!message || !message.alternatives) return;
@@ -1501,12 +1547,29 @@ const MultiCharacterChat = () => {
     updateConversation(currentConversationId, {
       messages: updatedMessages
     });
-  }, [getCurrentMessages, currentConversationId, updateConversation]);
+  }, [getAllMessages, currentConversationId, updateConversation]);
 
   const scrollToMessage = useCallback((index) => {
-    messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    // メッセージが表示範囲外の場合、visibleMessageCountを調整
+    const totalMessages = getAllMessages.length;
+    const currentStartIndex = totalMessages <= visibleMessageCount ? 0 : totalMessages - visibleMessageCount;
+
+    if (index < currentStartIndex) {
+      // メッセージが表示範囲より前にある場合、表示範囲を拡張
+      const newVisibleCount = totalMessages - index;
+      setVisibleMessageCount(newVisibleCount);
+
+      // 少し遅延させてからスクロール（DOM更新を待つ）
+      setTimeout(() => {
+        messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    } else {
+      // メッセージが表示範囲内にある場合、即座にスクロール
+      messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+
     setShowSidebar(false);
-  }, []);
+  }, [getAllMessages.length, visibleMessageCount]);
 
   const fetchModels = async () => {
     setIsLoadingModels(true);
@@ -1763,6 +1826,16 @@ const MultiCharacterChat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     setVisibleMessageCount(100); // 会話切り替え時はリセット
   }, [currentConversationId]);
+
+  /**
+   * メッセージ追加時のスクロール処理
+   * メッセージ数が変更されたら最下部にスクロール
+   */
+  useEffect(() => {
+    if (getAllMessages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [getAllMessages.length]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -2242,10 +2315,12 @@ const MultiCharacterChat = () => {
 
           {getVisibleMessages.map((message, visibleIndex) => {
             // 実際のインデックスを計算（全メッセージ配列での位置）
-            const actualIndex = getAllMessages.length - visibleMessageCount + visibleIndex;
+            // visibleMessageCountより少ない場合は0から、多い場合は適切なオフセットを計算
+            const startIndex = getAllMessages.length <= visibleMessageCount ? 0 : getAllMessages.length - visibleMessageCount;
+            const actualIndex = startIndex + visibleIndex;
             return (
+            <div key={actualIndex} ref={(el) => messageRefs.current[actualIndex] = el}>
             <MessageBubble
-              key={actualIndex}
               message={message}
               index={actualIndex}
               character={message.characterId ? getCharacterById(message.characterId) : null}
@@ -2271,6 +2346,7 @@ const MultiCharacterChat = () => {
               setShowThinking={setShowThinking}
               emotions={emotions}
             />
+            </div>
             );
           })}
 
@@ -2547,7 +2623,8 @@ const ConversationListItem = React.memo(({
          prevProps.conversation.messages.length === nextProps.conversation.messages.length &&
          prevProps.conversation.participantIds.length === nextProps.conversation.participantIds.length &&
          prevProps.isActive === nextProps.isActive &&
-         prevProps.editingConversationTitle === nextProps.editingConversationTitle;
+         prevProps.editingConversationTitle === nextProps.editingConversationTitle &&
+         prevProps.editingTitleText === nextProps.editingTitleText;
 });
 
 // Message Bubble Component
@@ -2808,7 +2885,9 @@ const MessageBubble = React.memo(({
   return prevProps.message.content === nextProps.message.content &&
          prevProps.message.timestamp === nextProps.message.timestamp &&
          prevProps.editingIndex === nextProps.editingIndex &&
+         prevProps.editingContent === nextProps.editingContent &&
          prevProps.showRegeneratePrefill === nextProps.showRegeneratePrefill &&
+         prevProps.regeneratePrefill === nextProps.regeneratePrefill &&
          prevProps.showVersions?.[nextProps.index] === nextProps.showVersions?.[nextProps.index] &&
          prevProps.character?.id === nextProps.character?.id;
 });
@@ -3010,6 +3089,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpda
                     onChange={(e) => updateRelationship(idx, 'char1Id', e.target.value)}
                     className="flex-1 px-2 py-1 text-sm border rounded"
                   >
+                    <option value="__user__">わたし（ユーザー）</option>
                     {localParticipants.map(charId => {
                       const char = characters.find(c => c.id === charId);
                       return char ? (
@@ -3023,6 +3103,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpda
                     onChange={(e) => updateRelationship(idx, 'char2Id', e.target.value)}
                     className="flex-1 px-2 py-1 text-sm border rounded"
                   >
+                    <option value="__user__">わたし（ユーザー）</option>
                     {localParticipants.map(charId => {
                       const char = characters.find(c => c.id === charId);
                       return char ? (
@@ -4088,10 +4169,6 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
       )}
     </div>
   );
-}, (prevProps, nextProps) => {
-  // カスタム比較関数: charactersとcharacterGroupsが変更された時のみ再レンダリング
-  return prevProps.characters.length === nextProps.characters.length &&
-         prevProps.characterGroups.length === nextProps.characterGroups.length;
 });
 
 // Confirmation Dialog Component
@@ -4204,7 +4281,7 @@ const EmojiPicker = ({ onSelect, onClose }) => {
 const ImageCropper = ({ imageSrc, onCrop, onCancel }) => {
   const canvasRef = useRef(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(1.0);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
@@ -4237,8 +4314,12 @@ const ImageCropper = ({ imageSrc, onCrop, onCancel }) => {
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, canvasSize, canvasSize);
 
-    // Calculate image dimensions
-    const scale = zoom;
+    // Calculate base scale to fit image in canvas
+    const maxDimension = Math.max(imageSize.width, imageSize.height);
+    const baseScale = canvasSize / maxDimension;
+
+    // Apply user zoom on top of base scale
+    const scale = baseScale * zoom;
     const imgWidth = imageSize.width * scale;
     const imgHeight = imageSize.height * scale;
 
@@ -4302,7 +4383,12 @@ const ImageCropper = ({ imageSrc, onCrop, onCancel }) => {
     const centerX = canvasSize / 2;
     const centerY = canvasSize / 2;
 
-    const scale = zoom;
+    // Calculate base scale to fit image in canvas
+    const maxDimension = Math.max(imageSize.width, imageSize.height);
+    const baseScale = canvasSize / maxDimension;
+
+    // Apply user zoom on top of base scale
+    const scale = baseScale * zoom;
     const imgWidth = imageSize.width * scale;
     const imgHeight = imageSize.height * scale;
 
