@@ -749,8 +749,8 @@ const MultiCharacterChat = () => {
     if (conversation.relationships && conversation.relationships.length > 0) {
       prompt += `## キャラクター間の関係性\n`;
       conversation.relationships.forEach((rel) => {
-        const char1 = participants.find(c => c.id === rel.char1Id);
-        const char2 = participants.find(c => c.id === rel.char2Id);
+        const char1 = rel.char1Id === '__user__' ? { name: 'ユーザー' } : participants.find(c => c.id === rel.char1Id);
+        const char2 = rel.char2Id === '__user__' ? { name: 'ユーザー' } : participants.find(c => c.id === rel.char2Id);
         if (char1 && char2) {
           prompt += `- ${char1.name} と ${char2.name}: ${rel.type}`;
           if (rel.description) {
@@ -849,7 +849,7 @@ const MultiCharacterChat = () => {
     setConversations(prev => [...prev, forkedConv]);
     setCurrentConversationId(forkedConv.id);
     return forkedConv.id;
-  }, [conversations]);
+  }, [conversations, getDefaultConversation]);
 
   /**
    * 会話削除（useCallbackでメモ化）
@@ -1309,15 +1309,15 @@ const MultiCharacterChat = () => {
    */
   const handleEdit = useCallback((index) => {
     setEditingIndex(index);
-    setEditingContent(getCurrentMessages[index].content);
-  }, [getCurrentMessages]);
+    setEditingContent(getAllMessages[index].content);
+  }, [getAllMessages]);
 
   /**
    * メッセージ編集保存（useCallbackでメモ化）
-   * getCurrentMessages, editingContent, currentConversationId, updateConversationが変更された時のみ再生成
+   * getAllMessages, editingContent, currentConversationId, updateConversationが変更された時のみ再生成
    */
   const handleSaveEdit = useCallback((index) => {
-    const currentMessages = getCurrentMessages;
+    const currentMessages = getAllMessages;
     const updated = [...currentMessages];
     updated[index].content = editingContent;
 
@@ -1326,7 +1326,7 @@ const MultiCharacterChat = () => {
     });
 
     setEditingIndex(null);
-  }, [getCurrentMessages, editingContent, currentConversationId, updateConversation]);
+  }, [getAllMessages, editingContent, currentConversationId, updateConversation]);
 
   /**
    * メッセージ編集キャンセル（useCallbackでメモ化）
@@ -1337,16 +1337,16 @@ const MultiCharacterChat = () => {
 
   /**
    * メッセージ削除（useCallbackでメモ化）
-   * getCurrentMessages, currentConversationId, updateConversationが変更された時のみ再生成
+   * getAllMessages, currentConversationId, updateConversationが変更された時のみ再生成
    */
   const handleDelete = useCallback((index) => {
-    const currentMessages = getCurrentMessages;
+    const currentMessages = getAllMessages;
     const updated = currentMessages.filter((_, i) => i !== index);
 
     updateConversation(currentConversationId, {
       messages: updated
     });
-  }, [getCurrentMessages, currentConversationId, updateConversation]);
+  }, [getAllMessages, currentConversationId, updateConversation]);
 
   /**
    * 会話分岐（useCallbackでメモ化）
@@ -1359,13 +1359,13 @@ const MultiCharacterChat = () => {
 
   /**
    * 指定位置から再生成（useCallbackでメモ化）
-   * getCurrentMessages, currentConversationId, updateConversation, regeneratePrefillが変更された時のみ再生成
+   * getAllMessages, currentConversationId, updateConversation, regeneratePrefillが変更された時のみ再生成
    */
   /**
    * グループ内再生成（同じAPI呼び出しグループ内のこのバブル以降を再生成）
    */
   const handleRegenerateGroup = useCallback(async (index) => {
-    const currentMessages = getCurrentMessages;
+    const currentMessages = getAllMessages;
     const targetMessage = currentMessages[index];
 
     if (!targetMessage || targetMessage.role !== 'assistant') {
@@ -1441,13 +1441,13 @@ const MultiCharacterChat = () => {
 
     setRegeneratePrefill('');
     setShowRegeneratePrefill(null);
-  }, [getCurrentMessages, currentConversationId, updateConversation, regeneratePrefill, generateResponse, getCharacterById]);
+  }, [getAllMessages, currentConversationId, updateConversation, regeneratePrefill, generateResponse, getCharacterById]);
 
   /**
    * 全体再生成（このバブル以降の全メッセージを再生成）
    */
   const handleRegenerateFrom = useCallback(async (index) => {
-    const currentMessages = getCurrentMessages;
+    const currentMessages = getAllMessages;
 
     // Prevent regenerating from index 0 which would clear all messages
     if (index === 0) {
@@ -1468,13 +1468,13 @@ const MultiCharacterChat = () => {
 
     setRegeneratePrefill('');
     setShowRegeneratePrefill(null);
-  }, [getCurrentMessages, currentConversationId, updateConversation, regeneratePrefill, generateResponse]);
+  }, [getAllMessages, currentConversationId, updateConversation, regeneratePrefill, generateResponse]);
 
   /**
    * バージョン切り替え
    */
   const handleSwitchVersion = useCallback((messageIndex, alternativeId) => {
-    const currentMessages = getCurrentMessages;
+    const currentMessages = getAllMessages;
     const message = currentMessages[messageIndex];
 
     if (!message || !message.alternatives) return;
@@ -1501,7 +1501,7 @@ const MultiCharacterChat = () => {
     updateConversation(currentConversationId, {
       messages: updatedMessages
     });
-  }, [getCurrentMessages, currentConversationId, updateConversation]);
+  }, [getAllMessages, currentConversationId, updateConversation]);
 
   const scrollToMessage = useCallback((index) => {
     messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -1763,6 +1763,16 @@ const MultiCharacterChat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     setVisibleMessageCount(100); // 会話切り替え時はリセット
   }, [currentConversationId]);
+
+  /**
+   * メッセージ追加時のスクロール処理
+   * メッセージ数が変更されたら最下部にスクロール
+   */
+  useEffect(() => {
+    if (getAllMessages.length > 0) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [getAllMessages.length]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -2244,8 +2254,8 @@ const MultiCharacterChat = () => {
             // 実際のインデックスを計算（全メッセージ配列での位置）
             const actualIndex = getAllMessages.length - visibleMessageCount + visibleIndex;
             return (
+            <div key={actualIndex} ref={(el) => messageRefs.current[actualIndex] = el}>
             <MessageBubble
-              key={actualIndex}
               message={message}
               index={actualIndex}
               character={message.characterId ? getCharacterById(message.characterId) : null}
@@ -2271,6 +2281,7 @@ const MultiCharacterChat = () => {
               setShowThinking={setShowThinking}
               emotions={emotions}
             />
+            </div>
             );
           })}
 
@@ -3010,6 +3021,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpda
                     onChange={(e) => updateRelationship(idx, 'char1Id', e.target.value)}
                     className="flex-1 px-2 py-1 text-sm border rounded"
                   >
+                    <option value="__user__">わたし（ユーザー）</option>
                     {localParticipants.map(charId => {
                       const char = characters.find(c => c.id === charId);
                       return char ? (
@@ -3023,6 +3035,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpda
                     onChange={(e) => updateRelationship(idx, 'char2Id', e.target.value)}
                     className="flex-1 px-2 py-1 text-sm border rounded"
                   >
+                    <option value="__user__">わたし（ユーザー）</option>
                     {localParticipants.map(charId => {
                       const char = characters.find(c => c.id === charId);
                       return char ? (
@@ -4088,10 +4101,6 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
       )}
     </div>
   );
-}, (prevProps, nextProps) => {
-  // カスタム比較関数: charactersとcharacterGroupsが変更された時のみ再レンダリング
-  return prevProps.characters.length === nextProps.characters.length &&
-         prevProps.characterGroups.length === nextProps.characterGroups.length;
 });
 
 // Confirmation Dialog Component
@@ -4204,7 +4213,7 @@ const EmojiPicker = ({ onSelect, onClose }) => {
 const ImageCropper = ({ imageSrc, onCrop, onCancel }) => {
   const canvasRef = useRef(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(0.5);
   const [isDragging, setIsDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
   const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
