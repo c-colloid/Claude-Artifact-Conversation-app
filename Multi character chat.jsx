@@ -261,7 +261,7 @@ const MultiCharacterChat = () => {
   // Thinking settings
   const [thinkingEnabled, setThinkingEnabled] = useState(false);
   const [thinkingBudget, setThinkingBudget] = useState(2000);
-  const [showThinking, setShowThinking] = useState(true);
+  const [showThinking, setShowThinking] = useState({});
 
   // Editing state
   const [editingIndex, setEditingIndex] = useState(null);
@@ -2793,13 +2793,13 @@ const MessageBubble = React.memo(({
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-yellow-700">💭 思考</span>
               <button
-                onClick={() => setShowThinking(!showThinking)}
-                className="text-yellow-600"
+                onClick={() => setShowThinking(prev => ({ ...prev, [index]: !(prev[index] ?? true) }))}
+                className="text-yellow-600 hover:bg-yellow-100 p-1 rounded transition-colors cursor-pointer"
               >
-                {showThinking ? <EyeOff size={14} /> : <Eye size={14} />}
+                {(showThinking[index] ?? true) ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
             </div>
-            {showThinking && (
+            {(showThinking[index] ?? true) && (
               <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono bg-white p-2 rounded max-h-40 overflow-y-auto">
                 {message.thinking}
               </pre>

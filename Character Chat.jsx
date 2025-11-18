@@ -27,7 +27,7 @@ const CharacterChat = () => {
   // Thinking settings
   const [thinkingEnabled, setThinkingEnabled] = useState(false);
   const [thinkingBudget, setThinkingBudget] = useState(2000);
-  const [showThinking, setShowThinking] = useState(true);
+  const [showThinking, setShowThinking] = useState({});
   
   // Editing state
   const [editingIndex, setEditingIndex] = useState(null);
@@ -1641,11 +1641,14 @@ const CharacterChat = () => {
                   <div className="mb-3 border-l-4 border-yellow-400 bg-yellow-50 p-3 rounded">
                     <div className="flex items-center justify-between mb-2">
                       <span className="text-xs font-semibold text-yellow-700">💭 思考</span>
-                      <button onClick={() => setShowThinking(!showThinking)} className="text-yellow-600">
-                        {showThinking ? <EyeOff size={14} /> : <Eye size={14} />}
+                      <button
+                        onClick={() => setShowThinking(prev => ({ ...prev, [index]: !(prev[index] ?? true) }))}
+                        className="text-yellow-600 hover:bg-yellow-100 p-1 rounded transition-colors cursor-pointer"
+                      >
+                        {(showThinking[index] ?? true) ? <EyeOff size={14} /> : <Eye size={14} />}
                       </button>
                     </div>
-                    {showThinking && (
+                    {(showThinking[index] ?? true) && (
                       <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono bg-white p-2 rounded max-h-40 overflow-y-auto">
                         {message.thinking}
                       </pre>
