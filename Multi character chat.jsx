@@ -18,7 +18,7 @@
  */
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import { AlertCircle, Trash2, Edit2, RotateCcw, Send, Plus, Eye, EyeOff, Settings, Menu, X, Hash, RefreshCw, Save, HardDrive, User, Heart, Download, Upload, ChevronDown, ChevronRight, Layers, Copy, MessageSquare, Check, Users, BookOpen, FileText, Image } from 'lucide-react';
+import { AlertCircle, Trash2, Edit2, RotateCcw, Send, Plus, Eye, EyeOff, Settings, Menu, X, Hash, RefreshCw, Save, HardDrive, User, Heart, Download, Upload, ChevronDown, ChevronRight, Layers, Copy, MessageSquare, Check, Users, BookOpen, FileText, Image, History, ChevronUp, SkipForward } from 'lucide-react';
 
 /**
  * デバウンス関数
@@ -271,6 +271,9 @@ const MultiCharacterChat = () => {
   const [editingConversationTitle, setEditingConversationTitle] = useState(null);
   const [editingTitleText, setEditingTitleText] = useState('');
 
+  // Version management state
+  const [showVersions, setShowVersions] = useState({});
+
   // Stats
   const [usageStats, setUsageStats] = useState({
     inputTokens: 0,
@@ -494,7 +497,7 @@ const MultiCharacterChat = () => {
     return merged;
   }, [getCharacterById]);
 
-  const parseMultiCharacterResponse = (responseText, conversation, thinkingContent) => {
+  const parseMultiCharacterResponse = (responseText, conversation, thinkingContent, responseGroupId = null) => {
     const messages = [];
     const characterUpdates = {}; // Collect character updates
     const lines = responseText.split('\n');
@@ -508,7 +511,7 @@ const MultiCharacterChat = () => {
         let content = currentContent.join('\n').trim();
         let emotion = null;
         let affection = null;
-        
+
         if (content) {
           // Extract emotion tag
           const emotionMatch = content.match(/\[EMOTION:(\w+)\]/);
@@ -516,7 +519,7 @@ const MultiCharacterChat = () => {
             emotion = emotionMatch[1];
             content = content.replace(/\[EMOTION:\w+\]/, '').trim();
           }
-          
+
           // Extract affection tag
           const affectionMatch = content.match(/\[AFFECTION:(\d+)\]/);
           if (affectionMatch) {
@@ -524,7 +527,7 @@ const MultiCharacterChat = () => {
             affection = Math.max(0, Math.min(100, value));
             content = content.replace(/\[AFFECTION:\d+\]/, '').trim();
           }
-          
+
           // Collect character state updates
           if (currentCharacterId && (emotion || affection !== null)) {
             if (!characterUpdates[currentCharacterId]) {
@@ -537,8 +540,12 @@ const MultiCharacterChat = () => {
               characterUpdates[currentCharacterId].affection = affection;
             }
           }
-          
+
+          const messageId = generateId();
+          const timestamp = new Date().toISOString();
+
           messages.push({
+            id: messageId,
             role: 'assistant',
             type: currentType || 'character',
             characterId: currentCharacterId,
@@ -546,7 +553,17 @@ const MultiCharacterChat = () => {
             emotion: emotion,
             affection: affection,
             thinking: !thinkingAdded && thinkingContent ? thinkingContent : '',
-            timestamp: new Date().toISOString()
+            timestamp: timestamp,
+            responseGroupId: responseGroupId,
+            alternatives: [{
+              id: generateId(),
+              content: content,
+              emotion: emotion,
+              affection: affection,
+              thinking: !thinkingAdded && thinkingContent ? thinkingContent : '',
+              timestamp: timestamp,
+              isActive: true
+            }]
           });
           thinkingAdded = true;
         }
@@ -603,7 +620,7 @@ const MultiCharacterChat = () => {
       const anyCharMatch = responseText.match(/\[CHARACTER:([^\]]+)\]/);
       let characterId = null;
       let messageType = 'character';
-      
+
       if (anyCharMatch) {
         const charName = anyCharMatch[1].trim();
         const char = conversation.participantIds
@@ -614,13 +631,27 @@ const MultiCharacterChat = () => {
 
       let cleanContent = responseText.replace(/\[CHARACTER:[^\]]+\]|\[NARRATION\]|\[EMOTION:\w+\]|\[AFFECTION:\d+\]/g, '').trim();
 
+      const messageId = generateId();
+      const timestamp = new Date().toISOString();
+
       messages.push({
+        id: messageId,
         role: 'assistant',
         type: messageType,
         characterId: characterId,
         content: cleanContent,
         thinking: thinkingContent,
-        timestamp: new Date().toISOString()
+        timestamp: timestamp,
+        responseGroupId: responseGroupId,
+        alternatives: [{
+          id: generateId(),
+          content: cleanContent,
+          emotion: null,
+          affection: null,
+          thinking: thinkingContent,
+          timestamp: timestamp,
+          isActive: true
+        }]
       });
     }
 
@@ -1089,7 +1120,7 @@ const MultiCharacterChat = () => {
 
       const sanitizedMessages = messages.map(msg => {
         let content = '';
-        
+
         if (msg.type === 'narration') {
           content = `[NARRATION]\n${msg.content}`;
         } else if (msg.type === 'user') {
@@ -1101,12 +1132,27 @@ const MultiCharacterChat = () => {
         }
 
         return {
-          role: msg.role === 'user' || msg.type === 'user' || msg.type === 'narration' ? 'user' : 'assistant',
+          // 重要: roleはmsg.roleをそのまま使う（地の文がassistantから来た場合はassistantのまま）
+          role: msg.role,
           content: content
         };
       });
 
-      const finalMessages = [...sanitizedMessages];
+      // 連続する同じroleのメッセージを結合（Claude APIの制約に対応）
+      const mergedMessages = [];
+      for (let i = 0; i < sanitizedMessages.length; i++) {
+        const current = sanitizedMessages[i];
+
+        if (mergedMessages.length > 0 &&
+            mergedMessages[mergedMessages.length - 1].role === current.role) {
+          // 直前と同じroleなら結合
+          mergedMessages[mergedMessages.length - 1].content += '\n\n' + current.content;
+        } else {
+          mergedMessages.push({ ...current });
+        }
+      }
+
+      const finalMessages = [...mergedMessages];
       
       const prefillToUse = customPrefill !== null ? customPrefill : (usePrefill ? prefillText : '');
       
@@ -1170,11 +1216,14 @@ const MultiCharacterChat = () => {
       });
 
       const fullContent = prefillToUse.trim()
-        ? prefillToUse + textContent 
+        ? prefillToUse + textContent
         : textContent;
 
+      // Generate a unique group ID for all messages from this API response
+      const responseGroupId = generateId();
+
       // Parse and split response into multiple messages
-      const { messages: parsedMessages, characterUpdates } = parseMultiCharacterResponse(fullContent, conversation, thinkingContent);
+      const { messages: parsedMessages, characterUpdates } = parseMultiCharacterResponse(fullContent, conversation, thinkingContent, responseGroupId);
 
       // Apply character updates
       if (Object.keys(characterUpdates).length > 0) {
@@ -1234,10 +1283,13 @@ const MultiCharacterChat = () => {
     }
 
     const newMessage = {
+      id: generateId(),
       role: 'user',
       type: messageType,
       content: userPrompt,
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
+      responseGroupId: null,
+      alternatives: null
     };
 
     const currentMessages = getCurrentMessages;
@@ -1309,6 +1361,91 @@ const MultiCharacterChat = () => {
    * 指定位置から再生成（useCallbackでメモ化）
    * getCurrentMessages, currentConversationId, updateConversation, regeneratePrefillが変更された時のみ再生成
    */
+  /**
+   * グループ内再生成（同じAPI呼び出しグループ内のこのバブル以降を再生成）
+   */
+  const handleRegenerateGroup = useCallback(async (index) => {
+    const currentMessages = getCurrentMessages;
+    const targetMessage = currentMessages[index];
+
+    if (!targetMessage || targetMessage.role !== 'assistant') {
+      setError('アシスタントメッセージのみ再生成できます。');
+      return;
+    }
+
+    // 直前のuserメッセージまで遡る
+    let userMessageIndex = index - 1;
+    while (userMessageIndex >= 0 && currentMessages[userMessageIndex].role === 'assistant') {
+      userMessageIndex--;
+    }
+
+    if (userMessageIndex < 0 || currentMessages[userMessageIndex].role !== 'user') {
+      setError('再生成できるユーザーメッセージが見つかりません。');
+      return;
+    }
+
+    // userメッセージまでの履歴を取得
+    const historyUpToPoint = currentMessages.slice(0, userMessageIndex + 1);
+
+    // 同じグループ内の、再生成対象より前のメッセージを取得
+    const sameGroupMessages = [];
+    if (targetMessage.responseGroupId) {
+      for (let i = userMessageIndex + 1; i < index; i++) {
+        if (currentMessages[i].responseGroupId === targetMessage.responseGroupId) {
+          sameGroupMessages.push(currentMessages[i]);
+        }
+      }
+    }
+
+    // プリフィルテキストを構築
+    let prefillParts = [];
+
+    for (const msg of sameGroupMessages) {
+      if (msg.type === 'narration') {
+        prefillParts.push(`[NARRATION]\n${msg.content}`);
+      } else if (msg.type === 'character') {
+        const char = getCharacterById(msg.characterId);
+        prefillParts.push(`[CHARACTER:${char?.name}]\n${msg.content}`);
+      }
+    }
+
+    // targetMessageの開始タグを追加
+    if (targetMessage.type === 'narration') {
+      prefillParts.push('[NARRATION]\n');
+    } else if (targetMessage.type === 'character') {
+      const char = getCharacterById(targetMessage.characterId);
+      prefillParts.push(`[CHARACTER:${char?.name}]\n`);
+    }
+
+    // ユーザーのカスタムプリフィルを追加
+    if (regeneratePrefill) {
+      prefillParts[prefillParts.length - 1] += regeneratePrefill;
+    }
+
+    const prefill = prefillParts.join('\n\n');
+
+    // 一時的にメッセージを削除（targetMessage以降の同じグループを削除）
+    const updatedMessages = currentMessages.filter((msg, i) => {
+      if (i < index) return true;
+      if (msg.responseGroupId && msg.responseGroupId === targetMessage.responseGroupId) return false;
+      if (!msg.responseGroupId && i === index) return false;
+      return true;
+    });
+
+    updateConversation(currentConversationId, {
+      messages: updatedMessages
+    });
+
+    // API呼び出し
+    await generateResponse(historyUpToPoint, false, prefill);
+
+    setRegeneratePrefill('');
+    setShowRegeneratePrefill(null);
+  }, [getCurrentMessages, currentConversationId, updateConversation, regeneratePrefill, generateResponse, getCharacterById]);
+
+  /**
+   * 全体再生成（このバブル以降の全メッセージを再生成）
+   */
   const handleRegenerateFrom = useCallback(async (index) => {
     const currentMessages = getCurrentMessages;
 
@@ -1324,7 +1461,7 @@ const MultiCharacterChat = () => {
       messages: historyUpToPoint
     });
 
-    // Only regenerate if the last message is from user or narration (not from assistant/character)
+    // Only regenerate if the last message is from user
     if (historyUpToPoint.length > 0 && historyUpToPoint[historyUpToPoint.length - 1].role === 'user') {
       await generateResponse(historyUpToPoint, false, regeneratePrefill);
     }
@@ -1332,6 +1469,39 @@ const MultiCharacterChat = () => {
     setRegeneratePrefill('');
     setShowRegeneratePrefill(null);
   }, [getCurrentMessages, currentConversationId, updateConversation, regeneratePrefill, generateResponse]);
+
+  /**
+   * バージョン切り替え
+   */
+  const handleSwitchVersion = useCallback((messageIndex, alternativeId) => {
+    const currentMessages = getCurrentMessages;
+    const message = currentMessages[messageIndex];
+
+    if (!message || !message.alternatives) return;
+
+    const selectedAlt = message.alternatives.find(alt => alt.id === alternativeId);
+    if (!selectedAlt) return;
+
+    const updatedMessage = {
+      ...message,
+      content: selectedAlt.content,
+      emotion: selectedAlt.emotion,
+      affection: selectedAlt.affection,
+      thinking: selectedAlt.thinking,
+      alternatives: message.alternatives.map(alt => ({
+        ...alt,
+        isActive: alt.id === alternativeId
+      }))
+    };
+
+    const updatedMessages = currentMessages.map((msg, i) =>
+      i === messageIndex ? updatedMessage : msg
+    );
+
+    updateConversation(currentConversationId, {
+      messages: updatedMessages
+    });
+  }, [getCurrentMessages, currentConversationId, updateConversation]);
 
   const scrollToMessage = useCallback((index) => {
     messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -2091,7 +2261,11 @@ const MultiCharacterChat = () => {
               setShowRegeneratePrefill={setShowRegeneratePrefill}
               regeneratePrefill={regeneratePrefill}
               setRegeneratePrefill={setRegeneratePrefill}
+              handleRegenerateGroup={handleRegenerateGroup}
               handleRegenerateFrom={handleRegenerateFrom}
+              handleSwitchVersion={handleSwitchVersion}
+              showVersions={showVersions}
+              setShowVersions={setShowVersions}
               isLoading={isLoading}
               showThinking={showThinking}
               setShowThinking={setShowThinking}
@@ -2395,7 +2569,11 @@ const MessageBubble = React.memo(({
   setShowRegeneratePrefill,
   regeneratePrefill,
   setRegeneratePrefill,
+  handleRegenerateGroup,
   handleRegenerateFrom,
+  handleSwitchVersion,
+  showVersions,
+  setShowVersions,
   isLoading,
   showThinking,
   setShowThinking,
@@ -2404,6 +2582,13 @@ const MessageBubble = React.memo(({
   const isUser = message.type === 'user';
   const isNarration = message.type === 'narration';
   const isCharacter = message.type === 'character';
+
+  const toggleVersions = () => {
+    setShowVersions(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }));
+  };
 
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -2468,7 +2653,7 @@ const MessageBubble = React.memo(({
             >
               <Trash2 size={14} />
             </button>
-            {!isUser && !isNarration && (
+            {!isUser && (
               <button
                 onClick={() => setShowRegeneratePrefill(showRegeneratePrefill === index ? null : index)}
                 className="p-1 text-gray-500 hover:text-purple-600"
@@ -2480,31 +2665,48 @@ const MessageBubble = React.memo(({
           </div>
         </div>
 
-        {showRegeneratePrefill === index && !isUser && !isNarration && (
+        {showRegeneratePrefill === index && !isUser && (
           <div className="mb-3 bg-purple-50 border border-purple-200 rounded-lg p-3">
-            <label className="block text-xs font-medium text-purple-700 mb-2">再生成Prefill</label>
+            <label className="block text-xs font-medium text-purple-700 mb-2">
+              再生成プリフィル（オプション）
+            </label>
             <input
               type="text"
               value={regeneratePrefill}
               onChange={(e) => setRegeneratePrefill(e.target.value)}
-              placeholder="例: [CHARACTER:キャラ名]"
-              className="w-full px-3 py-2 border border-purple-300 rounded-lg text-sm mb-2"
+              placeholder={
+                message.type === 'narration'
+                  ? "例: もっと緊張感のある描写で"
+                  : `例: ${character?.name}の性格をより強調して`
+              }
+              className="w-full px-3 py-2 border border-purple-300 rounded-lg text-sm mb-3"
             />
             <div className="flex gap-2">
               <button
-                onClick={() => handleRegenerateFrom(index)}
-                className="px-3 py-1.5 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-xs"
+                onClick={() => handleRegenerateGroup(index)}
+                className="flex-1 px-3 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 text-xs font-medium flex items-center justify-center gap-1"
                 disabled={isLoading}
+                title="同じグループ内のこのバブル以降を再生成"
               >
-                実行
+                <RotateCcw size={12} />
+                ここから（グループ内）
               </button>
               <button
-                onClick={() => { setShowRegeneratePrefill(null); setRegeneratePrefill(''); }}
-                className="px-3 py-1.5 bg-gray-400 text-white rounded-lg hover:bg-gray-500 text-xs"
+                onClick={() => handleRegenerateFrom(index)}
+                className="flex-1 px-3 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 text-xs font-medium flex items-center justify-center gap-1"
+                disabled={isLoading}
+                title="このバブル以降の全メッセージを再生成"
               >
-                キャンセル
+                <SkipForward size={12} />
+                ここから（全体）
               </button>
             </div>
+            <button
+              onClick={() => { setShowRegeneratePrefill(null); setRegeneratePrefill(''); }}
+              className="w-full mt-2 px-3 py-1.5 bg-gray-400 text-white rounded-lg hover:bg-gray-500 text-xs"
+            >
+              キャンセル
+            </button>
           </div>
         )}
 
@@ -2551,9 +2753,52 @@ const MessageBubble = React.memo(({
             </div>
           </div>
         ) : (
-          <pre className="whitespace-pre-wrap font-sans text-gray-800 text-sm leading-relaxed">
-            {message.content}
-          </pre>
+          <>
+            <pre className="whitespace-pre-wrap font-sans text-gray-800 text-sm leading-relaxed">
+              {message.content}
+            </pre>
+
+            {/* バージョン切り替えUI */}
+            {message.alternatives && message.alternatives.length > 1 && (
+              <div className="mt-3 pt-3 border-t border-gray-200">
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={toggleVersions}
+                    className="flex items-center gap-2 text-xs text-gray-600 hover:text-gray-800 transition"
+                  >
+                    <History size={14} />
+                    <span>{message.alternatives.length}つのバージョン</span>
+                    {showVersions[index] ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                  </button>
+                </div>
+
+                {showVersions[index] && (
+                  <div className="mt-2 space-y-1">
+                    {message.alternatives.slice().reverse().map((alt, i) => {
+                      const versionNumber = message.alternatives.length - i;
+                      return (
+                        <button
+                          key={alt.id}
+                          onClick={() => handleSwitchVersion(index, alt.id)}
+                          className={`w-full text-left px-3 py-2 rounded text-xs transition ${
+                            alt.isActive
+                              ? 'bg-purple-100 border border-purple-300 text-purple-700 font-medium'
+                              : 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                          }`}
+                        >
+                          {alt.isActive && '✓ '}
+                          バージョン{versionNumber}
+                          <span className="text-gray-500 ml-2">
+                            ({new Date(alt.timestamp).toLocaleTimeString()})
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
@@ -2564,6 +2809,7 @@ const MessageBubble = React.memo(({
          prevProps.message.timestamp === nextProps.message.timestamp &&
          prevProps.editingIndex === nextProps.editingIndex &&
          prevProps.showRegeneratePrefill === nextProps.showRegeneratePrefill &&
+         prevProps.showVersions?.[nextProps.index] === nextProps.showVersions?.[nextProps.index] &&
          prevProps.character?.id === nextProps.character?.id;
 });
 
