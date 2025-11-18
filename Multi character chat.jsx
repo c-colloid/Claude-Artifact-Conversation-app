@@ -1455,18 +1455,18 @@ const MultiCharacterChat = () => {
 
     // targetMessageの開始タグを追加
     if (targetMessage.type === 'narration') {
-      prefillParts.push('[NARRATION]');
+      prefillParts.push('[NARRATION]\n');
     } else if (targetMessage.type === 'character') {
       const char = getCharacterById(targetMessage.characterId);
-      prefillParts.push(`[CHARACTER:${char?.name}]`);
+      prefillParts.push(`[CHARACTER:${char?.name}]\n`);
     }
 
     // ユーザーのカスタムプリフィルを追加
     if (regeneratePrefill) {
-      prefillParts[prefillParts.length - 1] += '\n' + regeneratePrefill;
+      prefillParts[prefillParts.length - 1] += regeneratePrefill;
     }
 
-    // プリフィルテキストを結合し、末尾の空白を削除
+    // プリフィルテキストを結合し、末尾の空白のみ削除（途中の改行は保持）
     const prefill = prefillParts.join('\n\n').trimEnd();
 
     // 一時的にメッセージを削除（targetMessage以降の同じグループを削除）
