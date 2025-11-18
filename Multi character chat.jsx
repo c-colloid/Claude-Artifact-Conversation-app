@@ -580,10 +580,10 @@ const MultiCharacterChat = () => {
         const char = conversation.participantIds
           .map(id => getCharacterById(id))
           .find(c => c && c.name === charName);
-        
+
         currentType = 'character';
         currentCharacterId = char?.id || null;
-        
+
         // Add the rest of the line after the tag
         const restOfLine = line.replace(/^\[CHARACTER:[^\]]+\]\s*/, '');
         if (restOfLine) {
@@ -598,7 +598,7 @@ const MultiCharacterChat = () => {
         finishCurrentMessage();
         currentType = 'narration';
         currentCharacterId = null;
-        
+
         // Add the rest of the line after the tag
         const restOfLine = line.replace(/^\[NARRATION\]\s*/, '');
         if (restOfLine) {
@@ -1015,7 +1015,7 @@ const MultiCharacterChat = () => {
     reader.onload = (e) => {
       try {
         const data = JSON.parse(e.target.result);
-        
+
         if (data.conversation && data.characters) {
           // Import characters if they don't exist
           const charIdMap = {};
@@ -1129,11 +1129,11 @@ const MultiCharacterChat = () => {
 
   const generateConversationTitle = (messages) => {
     if (messages.length === 0) return '新しい会話';
-    
+
     // Find first user or character message
     const firstMsg = messages.find(m => m.type === 'user' || m.type === 'character');
     if (!firstMsg) return '新しい会話';
-    
+
     // Create title from first message content
     const preview = firstMsg.content.slice(0, 30);
     return preview + (firstMsg.content.length > 30 ? '…' : '');
@@ -1270,35 +1270,35 @@ const MultiCharacterChat = () => {
           const char = getCharacterById(charId);
           if (char) {
             const featureUpdates = { ...char.features };
-            
+
             if (updates.emotion && char.features.autoManageEmotion) {
               featureUpdates.currentEmotion = updates.emotion;
             }
-            
+
             if (updates.affection !== undefined && char.features.autoManageAffection) {
               featureUpdates.affectionLevel = updates.affection;
             }
-            
+
             updateCharacter(charId, { features: featureUpdates });
           }
         });
       }
 
       const updatedMessages = [...messages, ...parsedMessages];
-      
+
       // Auto-generate title if still default
       const conv = getCurrentConversation;
       if (conv) {
         const newTitle = conv.title === '新しい会話' && updatedMessages.length >= 2
           ? generateConversationTitle(updatedMessages)
           : conv.title;
-        
+
         updateConversation(currentConversationId, {
           messages: updatedMessages,
           title: newTitle
         });
       }
-      
+
       setUserPrompt('');
       setPrefillText('');
 
@@ -1588,22 +1588,22 @@ const MultiCharacterChat = () => {
       }
 
       const data = await response.json();
-      
+
       if (data.data && Array.isArray(data.data)) {
         const sortedModels = data.data.sort((a, b) => {
           return b.created_at.localeCompare(a.created_at);
         });
-        
+
         const formattedModels = sortedModels.map(model => ({
           id: model.id,
           name: getShortName(model.display_name, model.id),
           icon: getIconForModel(model.display_name, model.id)
         }));
-        
+
         setModels(formattedModels);
-        
+
         if (!formattedModels.find(m => m.id === selectedModel)) {
-          const defaultModel = formattedModels.find(m => m.id.includes('sonnet-4-5')) 
+          const defaultModel = formattedModels.find(m => m.id.includes('sonnet-4-5'))
             || formattedModels[0];
           if (defaultModel) {
             setSelectedModel(defaultModel.id);
@@ -1895,7 +1895,7 @@ const MultiCharacterChat = () => {
               </span>
             </div>
           )}
-          
+
           <div className="hidden lg:flex items-center gap-2 text-xs">
             {saveStatus === 'saving' && (
               <span className="flex items-center gap-1 text-blue-600">
@@ -1917,7 +1917,7 @@ const MultiCharacterChat = () => {
             )}
           </div>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowCharacterModal(true)}
@@ -1948,14 +1948,14 @@ const MultiCharacterChat = () => {
       {showSettings && (
         <div className="bg-white border-b border-gray-200 p-4 space-y-3 max-h-96 overflow-y-auto">
           <div className="flex flex-wrap gap-2">
-            <button 
-              onClick={() => createNewConversation()} 
+            <button
+              onClick={() => createNewConversation()}
               className="flex items-center gap-1 px-3 py-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 transition text-sm"
             >
               <Plus size={16} />
               新規会話
             </button>
-            <button 
+            <button
               onClick={() => {
                 if (currentConversation) {
                   exportConversation(currentConversation.id);
@@ -1967,7 +1967,7 @@ const MultiCharacterChat = () => {
               <Download size={16} />
               会話保存
             </button>
-            <button 
+            <button
               onClick={() => conversationFileInputRef.current?.click()}
               className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition text-sm"
             >
@@ -2010,10 +2010,10 @@ const MultiCharacterChat = () => {
                   <RefreshCw size={14} className={isLoadingModels ? 'animate-spin' : ''} />
                 </button>
               </div>
-              <select 
-                value={selectedModel} 
-                onChange={(e) => setSelectedModel(e.target.value)} 
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm" 
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                 disabled={isLoading || isLoadingModels}
               >
                 {models.length === 0 ? (
@@ -2028,23 +2028,23 @@ const MultiCharacterChat = () => {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Thinking</label>
               <div className="flex items-center gap-3">
-                <input 
-                  type="checkbox" 
-                  checked={thinkingEnabled} 
-                  onChange={(e) => setThinkingEnabled(e.target.checked)} 
-                  className="w-5 h-5" 
-                  disabled={isLoading} 
+                <input
+                  type="checkbox"
+                  checked={thinkingEnabled}
+                  onChange={(e) => setThinkingEnabled(e.target.checked)}
+                  className="w-5 h-5"
+                  disabled={isLoading}
                 />
                 {thinkingEnabled && (
-                  <input 
-                    type="number" 
-                    value={thinkingBudget} 
-                    onChange={(e) => setThinkingBudget(Number(e.target.value))} 
-                    className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm" 
-                    min="1000" 
-                    max="10000" 
-                    step="500" 
-                    disabled={isLoading} 
+                  <input
+                    type="number"
+                    value={thinkingBudget}
+                    onChange={(e) => setThinkingBudget(Number(e.target.value))}
+                    className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                    min="1000"
+                    max="10000"
+                    step="500"
+                    disabled={isLoading}
                   />
                 )}
               </div>
@@ -2175,8 +2175,8 @@ const MultiCharacterChat = () => {
                       key={idx}
                       onClick={() => scrollToMessage(idx)}
                       className={`w-full text-left px-2 py-2 rounded-lg text-xs transition ${
-                        msg.type === 'user' 
-                          ? 'bg-blue-50 hover:bg-blue-100 text-blue-800' 
+                        msg.type === 'user'
+                          ? 'bg-blue-50 hover:bg-blue-100 text-blue-800'
                           : msg.type === 'narration'
                             ? 'bg-amber-50 hover:bg-amber-100 text-amber-800'
                             : 'bg-purple-50 hover:bg-purple-100 text-purple-800'
@@ -2428,27 +2428,27 @@ const MultiCharacterChat = () => {
             </div>
           )}
 
-          <input 
-            type="text" 
-            value={prefillText} 
-            onChange={(e) => setPrefillText(e.target.value)} 
-            placeholder="Prefill（オプション）" 
-            className="flex-1 min-w-[150px] px-3 py-2 border border-gray-300 rounded-lg text-sm" 
-            disabled={isLoading} 
+          <input
+            type="text"
+            value={prefillText}
+            onChange={(e) => setPrefillText(e.target.value)}
+            placeholder="Prefill（オプション）"
+            className="flex-1 min-w-[150px] px-3 py-2 border border-gray-300 rounded-lg text-sm"
+            disabled={isLoading}
           />
         </div>
         <div className="flex gap-2">
-          <textarea 
+          <textarea
             ref={textareaRef}
-            value={userPrompt} 
-            onChange={(e) => setUserPrompt(e.target.value)} 
-            onKeyDown={(e) => { 
-              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { 
-                handleSend(); 
-              } 
-            }} 
+            value={userPrompt}
+            onChange={(e) => setUserPrompt(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+                handleSend();
+              }
+            }}
             placeholder={
-              !currentConversation 
+              !currentConversation
                 ? '会話を選択してください'
                 : currentConversation.participantIds.length === 0
                   ? 'キャラクターを追加してください'
@@ -2456,13 +2456,13 @@ const MultiCharacterChat = () => {
                     ? '地の文を入力... (情景描写、行動描写など)'
                     : 'メッセージを入力... (Ctrl+Enter で送信)'
             }
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none overflow-y-auto" 
+            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm resize-none overflow-y-auto"
             style={{ minHeight: '80px', maxHeight: '400px' }}
-            disabled={isLoading || !currentConversation || currentConversation.participantIds.length === 0} 
+            disabled={isLoading || !currentConversation || currentConversation.participantIds.length === 0}
           />
-          <button 
-            onClick={handleSend} 
-            disabled={isLoading || !userPrompt.trim() || !currentConversation || currentConversation.participantIds.length === 0} 
+          <button
+            onClick={handleSend}
+            disabled={isLoading || !userPrompt.trim() || !currentConversation || currentConversation.participantIds.length === 0}
             className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition disabled:bg-gray-300 flex items-center gap-2 text-sm self-end"
           >
             <Send size={16} />
@@ -2497,19 +2497,19 @@ const MultiCharacterChat = () => {
       )}
 
       {/* File input refs */}
-      <input 
-        ref={characterFileInputRef} 
-        type="file" 
-        accept=".json" 
-        onChange={importCharacter} 
-        className="hidden" 
+      <input
+        ref={characterFileInputRef}
+        type="file"
+        accept=".json"
+        onChange={importCharacter}
+        className="hidden"
       />
-      <input 
-        ref={conversationFileInputRef} 
-        type="file" 
-        accept=".json" 
-        onChange={importConversation} 
-        className="hidden" 
+      <input
+        ref={conversationFileInputRef}
+        type="file"
+        accept=".json"
+        onChange={importConversation}
+        className="hidden"
       />
     </div>
   );
@@ -3872,7 +3872,7 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
 
               <div className="border-t pt-3 space-y-3">
                 <h4 className="font-semibold text-sm">機能設定</h4>
-                
+
                 <label className="flex items-center gap-3 p-3 border rounded-lg hover:bg-gray-50 cursor-pointer">
                   <input
                     type="checkbox"
@@ -4134,7 +4134,7 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
           )}
         </div>
       </div>
-      
+
       {characterFileInputRef && (
         <input
           ref={characterFileInputRef}
