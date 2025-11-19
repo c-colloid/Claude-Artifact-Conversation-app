@@ -235,6 +235,7 @@ const IndexedDBWrapper = {
 
 const MultiCharacterChat = () => {
   // Initialization state
+  // ===== State管理 =====
   const [isInitialized, setIsInitialized] = useState(false);
 
   // Characters state
@@ -295,12 +296,16 @@ const MultiCharacterChat = () => {
 
   // Message display optimization
   const [visibleMessageCount, setVisibleMessageCount] = useState(100);
+
+  // ===== 定数定義 =====
   const MESSAGE_LOAD_INCREMENT = 50; // 「もっと見る」で読み込む件数
 
   // Confirmation dialog state
   const [confirmDialog, setConfirmDialog] = useState(null);
 
   // Refs
+
+  // ===== Refs =====
   const messagesEndRef = useRef(null);
   const characterFileInputRef = useRef(null);
   const conversationFileInputRef = useRef(null);
@@ -414,6 +419,8 @@ const MultiCharacterChat = () => {
    * 現在選択されている会話を取得（useMemoでメモ化）
    * conversationsまたはcurrentConversationIdが変更された時のみ再計算
    */
+
+  // ===== Memoized値（データ取得・計算）=====
   const getCurrentConversation = useMemo(() => {
     return conversations.find(c => c.id === currentConversationId);
   }, [conversations, currentConversationId]);
@@ -448,6 +455,8 @@ const MultiCharacterChat = () => {
   const getCurrentMessages = getAllMessages;
 
   // キャラクター検索をメモ化（useCallback）
+
+  // ===== イベントハンドラー・操作関数（useCallback）=====
   const getCharacterById = useCallback((id) => {
     return characters.find(c => c.id === id);
   }, [characters]);
@@ -1788,6 +1797,8 @@ const MultiCharacterChat = () => {
   };
 
   // Initial load effect
+
+  // ===== 副作用（useEffect）=====
   useEffect(() => {
     const initializeData = async () => {
       const hasData = await loadFromStorage();
@@ -2520,117 +2531,426 @@ const MultiCharacterChat = () => {
  * 会話リストの個別アイテムコンポーネント
  * conversation.id, conversation.title, conversation.updated, isActiveが変更された時のみ再レンダリング
  */
-const ConversationListItem = React.memo(({
-  conversation,
-  isActive,
-  onSelect,
-  onEditTitle,
-  onExport,
-  onDelete,
-  editingConversationTitle,
-  editingTitleText,
-  setEditingTitleText,
-  setEditingConversationTitle,
-  updateConversation
-}) => {
+
+// ===== サブコンポーネント（依存関係順）=====
+
+// AvatarDisplay
+const AvatarDisplay = React.memo(({ character, size = 'md' }) => {
+  if (!character) return null;
+
+  const sizeClasses = {
+    sm: 'w-6 h-6 text-sm',
+    md: 'w-10 h-10 text-2xl',
+    lg: 'w-16 h-16 text-4xl'
+  };
+
+  const sizeClass = sizeClasses[size] || sizeClasses.md;
+
+  if (character.features.avatarType === 'image' && character.features.avatarImage) {
+    return (
+      <div className={`${sizeClass} rounded-full overflow-hidden flex-shrink-0 bg-gray-100`}>
+        <img
+          src={character.features.avatarImage}
+          alt={character.name}
+          className="w-full h-full object-cover"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <span className={`${sizeClass} flex items-center justify-center flex-shrink-0`}>
+      {character.features.avatar || '😊'}
+    </span>
+  );
+}, (prevProps, nextProps) => {
+  // キャラクターIDとアバター設定が同じなら再レンダリングしない
+  return prevProps.character?.id === nextProps.character?.id &&
+         prevProps.character?.features.avatar === nextProps.character?.features.avatar &&
+         prevProps.character?.features.avatarImage === nextProps.character?.features.avatarImage &&
+         prevProps.size === nextProps.size;
+});
+
+// ConfirmDialog
+const ConfirmDialog = React.memo(({ title, message, onConfirm, onCancel }) => {
   return (
     <div
-      className={`group rounded-lg transition ${
-        isActive
-          ? 'bg-indigo-100 border-2 border-indigo-500'
-          : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
-      }`}
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onCancel();
+        }
+      }}
     >
-      <div className="flex items-start gap-2 p-2">
-        <button
-          onClick={() => onSelect(conversation.id)}
-          className="flex-1 text-left min-w-0"
-        >
-          <div className="flex items-center gap-2 mb-1">
-            {isActive && <Check size={12} className="text-indigo-600 flex-shrink-0" />}
-            {editingConversationTitle === conversation.id ? (
-              <input
-                type="text"
-                value={editingTitleText}
-                onChange={(e) => setEditingTitleText(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    updateConversation(conversation.id, { title: editingTitleText });
-                    setEditingConversationTitle(null);
-                  } else if (e.key === 'Escape') {
-                    setEditingConversationTitle(null);
-                  }
-                }}
-                onClick={(e) => e.stopPropagation()}
-                onBlur={() => {
-                  updateConversation(conversation.id, { title: editingTitleText });
-                  setEditingConversationTitle(null);
-                }}
-                autoFocus
-                className="flex-1 px-2 py-0.5 text-sm font-semibold border border-indigo-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              />
-            ) : (
-              <span className="font-semibold text-sm truncate">{conversation.title}</span>
-            )}
+      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+        <div className="p-6">
+          <h3 className="text-lg font-bold text-gray-800 mb-4">{title}</h3>
+          <p className="text-gray-600 whitespace-pre-line mb-6">{message}</p>
+          <div className="flex gap-3 justify-end">
+            <button
+              onClick={onCancel}
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+            >
+              キャンセル
+            </button>
+            <button
+              onClick={onConfirm}
+              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+            >
+              OK
+            </button>
           </div>
-          <div className="flex items-center justify-between text-xs text-gray-500">
-            <span>{conversation.messages.length}件</span>
-            <span className="flex items-center gap-1">
-              <Users size={10} />
-              {conversation.participantIds.length}
-            </span>
-          </div>
-        </button>
-        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition flex-shrink-0">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEditTitle(conversation.id, conversation.title);
-            }}
-            className="p-1 hover:bg-blue-100 rounded"
-            title="タイトル編集"
-          >
-            <Edit2 size={12} className="text-blue-600" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onExport(conversation.id);
-            }}
-            className="p-1 hover:bg-green-100 rounded"
-            title="エクスポート"
-          >
-            <Download size={12} className="text-green-600" />
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete(conversation.id);
-            }}
-            className="p-1 hover:bg-red-100 rounded"
-            title="削除"
-          >
-            <Trash2 size={12} className="text-red-600" />
-          </button>
         </div>
       </div>
     </div>
   );
-}, (prevProps, nextProps) => {
-  // カスタム比較関数: 会話ID、タイトル、更新日時、アクティブ状態が同じなら再レンダリングしない
-  return prevProps.conversation.id === nextProps.conversation.id &&
-         prevProps.conversation.title === nextProps.conversation.title &&
-         prevProps.conversation.updated === nextProps.conversation.updated &&
-         prevProps.conversation.messages.length === nextProps.conversation.messages.length &&
-         prevProps.conversation.participantIds.length === nextProps.conversation.participantIds.length &&
-         prevProps.isActive === nextProps.isActive &&
-         prevProps.editingConversationTitle === nextProps.editingConversationTitle &&
-         prevProps.editingTitleText === nextProps.editingTitleText;
 });
 
-// Message Bubble Component
-// ===== パフォーマンス最適化: React.memoでメモ化されたメッセージバブル =====
-// メッセージの内容が変更された場合のみ再レンダリングされます
+// ===== パフォーマンス最適化: React.memoでメモ化されたアバター表示 =====
+
+// EmojiPicker
+const EmojiPicker = ({ onSelect, onClose }) => {
+  const [activeCategory, setActiveCategory] = useState('smileys');
+
+  const emojiCategories = {
+    smileys: {
+      name: '😊 顔',
+      emojis: ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙', '🥲', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '😶‍🌫️', '🥴', '😵', '🤯', '🤠', '🥳', '😎', '🤓', '🧐']
+    },
+    animals: {
+      name: '🐶 動物',
+      emojis: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🐛', '🦋', '🐌', '🐞', '🐜', '🦟', '🦗', '🕷️', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈', '🐈‍⬛', '🐓', '🦃', '🦚', '🦜', '🦢', '🦩', '🕊️', '🐇', '🦝', '🦨', '🦡', '🦦', '🦥', '🐁', '🐀', '🐿️', '🦔']
+    },
+    food: {
+      name: '🍕 食べ物',
+      emojis: ['🍎', '🍏', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌶️', '🫑', '🌽', '🥕', '🫒', '🧄', '🧅', '🥔', '🍠', '🥐', '🥯', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', '🧈', '🥞', '🧇', '🥓', '🥩', '🍗', '🍖', '🦴', '🌭', '🍔', '🍟', '🍕', '🫓', '🥪', '🥙', '🧆', '🌮', '🌯', '🫔', '🥗', '🥘', '🫕', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🥮', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪', '🌰', '🥜', '🍯']
+    },
+    activities: {
+      name: '⚽ 活動',
+      emojis: ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🥅', '⛳', '🪁', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛼', '🛷', '⛸️', '🥌', '🎿', '⛷️', '🏂', '🪂', '🏋️', '🤼', '🤸', '🤺', '🤾', '🏌️', '🏇', '🧘', '🏊', '🚣', '🧗', '🚵', '🚴', '🏎️', '🏍️', '🤹', '🎭', '🩰', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🪕', '🎻', '🎲', '♟️', '🎯', '🎳', '🎮', '🎰', '🧩']
+    },
+    travel: {
+      name: '✈️ 旅行',
+      emojis: ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🦯', '🦽', '🦼', '🛴', '🚲', '🛵', '🏍️', '🛺', '🚨', '🚔', '🚍', '🚘', '🚖', '🚡', '🚠', '🚟', '🚃', '🚋', '🚞', '🚝', '🚄', '🚅', '🚈', '🚂', '🚆', '🚇', '🚊', '🚉', '✈️', '🛫', '🛬', '🛩️', '💺', '🛰️', '🚀', '🛸', '🚁', '🛶', '⛵', '🚤', '🛥️', '🛳️', '⛴️', '🚢', '⚓', '⛽', '🚧', '🚦', '🚥', '🗺️', '🗿', '🗽', '🗼', '🏰', '🏯', '🏟️', '🎡', '🎢', '🎠', '⛲', '⛱️', '🏖️', '🏝️', '🏜️', '🌋', '⛰️', '🏔️', '🗻', '🏕️', '⛺', '🏠', '🏡', '🏘️', '🏚️', '🏗️', '🏭', '🏢', '🏬', '🏣', '🏤', '🏥', '🏦', '🏨', '🏪', '🏫', '🏩', '💒', '🏛️', '⛪', '🕌', '🛕', '🕍', '⛩️', '🕋']
+    },
+    objects: {
+      name: '📱 物',
+      emojis: ['⌚', '📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '🕹️', '🗜️', '💾', '💿', '📀', '📼', '📷', '📸', '📹', '🎥', '📽️', '🎞️', '📞', '☎️', '📟', '📠', '📺', '📻', '🎙️', '🎚️', '🎛️', '🧭', '⏱️', '⏲️', '⏰', '🕰️', '⌛', '⏳', '📡', '🔋', '🔌', '💡', '🔦', '🕯️', '🪔', '🧯', '🛢️', '💸', '💵', '💴', '💶', '💷', '🪙', '💰', '💳', '🪪', '💎', '⚖️', '🪜', '🧰', '🪛', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🪚', '🔩', '⚙️', '🪤', '🧱', '⛓️', '🧲', '🔫', '💣', '🧨', '🪓', '🔪', '🗡️', '⚔️', '🛡️', '🚬', '⚰️', '🪦', '⚱️', '🏺', '🔮', '📿', '🧿', '💈', '⚗️', '🔭', '🔬', '🕳️', '🩹', '🩺', '💊', '💉', '🩸', '🧬', '🦠', '🧫', '🧪', '🌡️', '🧹', '🪠', '🧺', '🧻', '🚽', '🚰', '🚿', '🛁', '🛀', '🧼', '🪥', '🪒', '🧽', '🪣', '🧴', '🛎️', '🔑', '🗝️', '🚪', '🪑', '🛋️', '🛏️', '🛌', '🧸', '🪆', '🖼️', '🪞', '🪟', '🛍️', '🎁', '🎈', '🎏', '🎀', '🪄', '🪅', '🎊', '🎉', '🎎', '🏮', '🎐', '🧧', '✉️', '📩', '📨', '📧', '💌', '📥', '📤', '📦', '🏷️', '🪧', '📪', '📫', '📬', '📭', '📮', '📯', '📜', '📃', '📄', '📑', '🧾', '📊', '📈', '📉', '🗒️', '🗓️', '📆', '📅', '🗑️', '📇', '🗃️', '🗳️', '🗄️', '📋', '📁', '📂', '🗂️', '🗞️', '📰', '📓', '📔', '📒', '📕', '📗', '📘', '📙', '📚', '📖', '🔖', '🧷', '🔗', '📎', '🖇️', '📐', '📏', '🧮', '📌', '📍', '✂️', '🖊️', '🖋️', '✒️', '🖌️', '🖍️', '📝', '✏️', '🔍', '🔎', '🔏', '🔐', '🔒', '🔓']
+    },
+    symbols: {
+      name: '❤️ 記号',
+      emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❤️‍🔥', '❤️‍🩹', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺', '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️', '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️', '🅱️', '🆎', '🆑', '🅾️', '🆘', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '💯', '💢', '♨️', '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗', '❕', '❓', '❔', '‼️', '⁉️', '🔅', '🔆', '〽️', '⚠️', '🚸', '🔱', '⚜️', '🔰', '♻️', '✅', '🈯', '💹', '❇️', '✳️', '❎', '🌐', '💠', 'Ⓜ️', '🌀', '💤', '🏧', '🚾', '♿', '🅿️', '🛗', '🈳', '🈂️', '🛂', '🛃', '🛄', '🛅', '🚹', '🚺', '🚼', '⚧️', '🚻', '🚮', '🎦', '📶', '🈁', '🔣', 'ℹ️', '🔤', '🔡', '🔠', '🆖', '🆗', '🆙', '🆒', '🆕', '🆓', '0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '🔢', '#️⃣', '*️⃣', '⏏️', '▶️', '⏸️', '⏯️', '⏹️', '⏺️', '⏭️', '⏮️', '⏩', '⏪', '⏫', '⏬', '◀️', '🔼', '🔽', '➡️', '⬅️', '⬆️', '⬇️', '↗️', '↘️', '↙️', '↖️', '↕️', '↔️', '↪️', '↩️', '⤴️', '⤵️', '🔀', '🔁', '🔂', '🔄', '🔃', '🎵', '🎶', '➕', '➖', '➗', '✖️', '🟰', '♾️', '💲', '💱', '™️', '©️', '®️', '〰️', '➰', '➿', '🔚', '🔙', '🔛', '🔝', '🔜', '✔️', '☑️', '🔘', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🟤', '🔺', '🔻', '🔸', '🔹', '🔶', '🔷', '🔳', '🔲', '▪️', '▫️', '◾', '◽', '◼️', '◻️', '🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '⬛', '⬜', '🟫', '🔈', '🔇', '🔉', '🔊', '🔔', '🔕', '📣', '📢', '👁️‍🗨️', '💬', '💭', '🗯️', '♠️', '♣️', '♥️', '♦️', '🃏', '🎴', '🀄', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚', '🕛', '🕜', '🕝', '🕞', '🕟', '🕠', '🕡', '🕢', '🕣', '🕤', '🕥', '🕦', '🕧']
+    }
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl w-full max-w-lg"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="text-lg font-bold text-gray-800">絵文字を選択</h3>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onClose();
+            }}
+            className="p-2 hover:bg-gray-100 rounded-lg"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex border-b overflow-x-auto">
+          {Object.entries(emojiCategories).map(([key, category]) => (
+            <button
+              key={key}
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                setActiveCategory(key);
+              }}
+              className={`px-4 py-2 text-sm whitespace-nowrap ${
+                activeCategory === key
+                  ? 'border-b-2 border-purple-600 text-purple-600 font-medium'
+                  : 'text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {category.name}
+            </button>
+          ))}
+        </div>
+
+        <div className="p-4 h-80 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+          <div className="grid grid-cols-8 gap-2">
+            {emojiCategories[activeCategory].emojis.map((emoji, index) => (
+              <button
+                key={index}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onSelect(emoji);
+                  onClose();
+                }}
+                className="text-3xl p-2 hover:bg-gray-100 rounded-lg transition"
+              >
+                {emoji}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Image Cropper Component
+
+// ImageCropper
+const ImageCropper = ({ imageSrc, onCrop, onCancel }) => {
+  const canvasRef = useRef(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1.0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
+  const imageRef = useRef(null);
+
+  useEffect(() => {
+    const img = new window.Image();
+    img.onload = () => {
+      setImageSize({ width: img.width, height: img.height });
+      imageRef.current = img;
+      drawCanvas();
+    };
+    img.src = imageSrc;
+  }, [imageSrc]);
+
+  useEffect(() => {
+    drawCanvas();
+  }, [crop, zoom, imageSize]);
+
+  const drawCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !imageRef.current) return;
+
+    const ctx = canvas.getContext('2d');
+    const canvasSize = 400;
+    canvas.width = canvasSize;
+    canvas.height = canvasSize;
+
+    // Clear canvas
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvasSize, canvasSize);
+
+    // Calculate base scale to fit image in canvas
+    const maxDimension = Math.max(imageSize.width, imageSize.height);
+    const baseScale = canvasSize / maxDimension;
+
+    // Apply user zoom on top of base scale
+    const scale = baseScale * zoom;
+    const imgWidth = imageSize.width * scale;
+    const imgHeight = imageSize.height * scale;
+
+    // Draw image
+    ctx.drawImage(
+      imageRef.current,
+      crop.x,
+      crop.y,
+      imgWidth,
+      imgHeight
+    );
+
+    // Draw crop circle overlay
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+    ctx.fillRect(0, 0, canvasSize, canvasSize);
+
+    ctx.globalCompositeOperation = 'destination-out';
+    ctx.beginPath();
+    ctx.arc(canvasSize / 2, canvasSize / 2, 150, 0, 2 * Math.PI);
+    ctx.fill();
+
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(canvasSize / 2, canvasSize / 2, 150, 0, 2 * Math.PI);
+    ctx.stroke();
+  };
+
+  const handlePointerDown = (e) => {
+    setIsDragging(true);
+    setDragStart({ x: e.clientX - crop.x, y: e.clientY - crop.y });
+  };
+
+  const handlePointerMove = (e) => {
+    if (!isDragging) return;
+    setCrop({
+      x: e.clientX - dragStart.x,
+      y: e.clientY - dragStart.y
+    });
+  };
+
+  const handlePointerUp = () => {
+    setIsDragging(false);
+  };
+
+  const handleCrop = () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !imageRef.current) return;
+
+    // Create output canvas
+    const outputCanvas = document.createElement('canvas');
+    const outputSize = 300;
+    outputCanvas.width = outputSize;
+    outputCanvas.height = outputSize;
+    const outputCtx = outputCanvas.getContext('2d');
+
+    // Calculate crop area
+    const canvasSize = 400;
+    const cropRadius = 150;
+    const centerX = canvasSize / 2;
+    const centerY = canvasSize / 2;
+
+    // Calculate base scale to fit image in canvas
+    const maxDimension = Math.max(imageSize.width, imageSize.height);
+    const baseScale = canvasSize / maxDimension;
+
+    // Apply user zoom on top of base scale
+    const scale = baseScale * zoom;
+    const imgWidth = imageSize.width * scale;
+    const imgHeight = imageSize.height * scale;
+
+    // Calculate source crop coordinates
+    const sourceX = (centerX - cropRadius - crop.x) / scale;
+    const sourceY = (centerY - cropRadius - crop.y) / scale;
+    const sourceSize = (cropRadius * 2) / scale;
+
+    // Draw cropped circle
+    outputCtx.beginPath();
+    outputCtx.arc(outputSize / 2, outputSize / 2, outputSize / 2, 0, 2 * Math.PI);
+    outputCtx.clip();
+
+    outputCtx.drawImage(
+      imageRef.current,
+      sourceX,
+      sourceY,
+      sourceSize,
+      sourceSize,
+      0,
+      0,
+      outputSize,
+      outputSize
+    );
+
+    // WebP形式で圧縮（70%品質）、対応していない場合はJPEG
+    const mimeType = outputCanvas.toDataURL('image/webp').indexOf('data:image/webp') === 0
+      ? 'image/webp'
+      : 'image/jpeg';
+    const croppedImage = outputCanvas.toDataURL(mimeType, 0.7);
+    onCrop(croppedImage);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onCancel();
+        }
+      }}
+    >
+      <div
+        className="bg-white rounded-lg shadow-xl w-full max-w-md"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between p-4 border-b">
+          <h3 className="text-lg font-bold text-gray-800">画像をクロップ</h3>
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onCancel();
+            }}
+            className="p-2 hover:bg-gray-100 rounded-lg"
+          >
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="p-4 space-y-4" onClick={(e) => e.stopPropagation()}>
+          <div className="relative">
+            <canvas
+              ref={canvasRef}
+              width={400}
+              height={400}
+              className="w-full h-auto border border-gray-300 rounded-lg cursor-move"
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              onPointerLeave={handlePointerUp}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700">
+              ズーム: {zoom.toFixed(1)}x
+            </label>
+            <input
+              type="range"
+              min="0.5"
+              max="3"
+              step="0.1"
+              value={zoom}
+              onChange={(e) => setZoom(parseFloat(e.target.value))}
+              className="w-full"
+            />
+          </div>
+
+          <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded">
+            💡 画像をドラッグして位置を調整し、スライダーでズームできます
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                handleCrop();
+              }}
+              className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium"
+            >
+              クロップ
+            </button>
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onCancel();
+              }}
+              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+            >
+              キャンセル
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ===== パフォーマンス最適化: React.memoでメモ化された確認ダイアログ =====
+
+// MessageBubble
 const MessageBubble = React.memo(({
   message,
   index,
@@ -2898,6 +3218,121 @@ const MessageBubble = React.memo(({
  * 会話設定パネルコンポーネント
  * conversation.id, characters配列が変更された時のみ再レンダリング
  */
+
+// ConversationListItem
+const ConversationListItem = React.memo(({
+  conversation,
+  isActive,
+  onSelect,
+  onEditTitle,
+  onExport,
+  onDelete,
+  editingConversationTitle,
+  editingTitleText,
+  setEditingTitleText,
+  setEditingConversationTitle,
+  updateConversation
+}) => {
+  return (
+    <div
+      className={`group rounded-lg transition ${
+        isActive
+          ? 'bg-indigo-100 border-2 border-indigo-500'
+          : 'bg-gray-50 hover:bg-gray-100 border-2 border-transparent'
+      }`}
+    >
+      <div className="flex items-start gap-2 p-2">
+        <button
+          onClick={() => onSelect(conversation.id)}
+          className="flex-1 text-left min-w-0"
+        >
+          <div className="flex items-center gap-2 mb-1">
+            {isActive && <Check size={12} className="text-indigo-600 flex-shrink-0" />}
+            {editingConversationTitle === conversation.id ? (
+              <input
+                type="text"
+                value={editingTitleText}
+                onChange={(e) => setEditingTitleText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    updateConversation(conversation.id, { title: editingTitleText });
+                    setEditingConversationTitle(null);
+                  } else if (e.key === 'Escape') {
+                    setEditingConversationTitle(null);
+                  }
+                }}
+                onClick={(e) => e.stopPropagation()}
+                onBlur={() => {
+                  updateConversation(conversation.id, { title: editingTitleText });
+                  setEditingConversationTitle(null);
+                }}
+                autoFocus
+                className="flex-1 px-2 py-0.5 text-sm font-semibold border border-indigo-300 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+            ) : (
+              <span className="font-semibold text-sm truncate">{conversation.title}</span>
+            )}
+          </div>
+          <div className="flex items-center justify-between text-xs text-gray-500">
+            <span>{conversation.messages.length}件</span>
+            <span className="flex items-center gap-1">
+              <Users size={10} />
+              {conversation.participantIds.length}
+            </span>
+          </div>
+        </button>
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition flex-shrink-0">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onEditTitle(conversation.id, conversation.title);
+            }}
+            className="p-1 hover:bg-blue-100 rounded"
+            title="タイトル編集"
+          >
+            <Edit2 size={12} className="text-blue-600" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onExport(conversation.id);
+            }}
+            className="p-1 hover:bg-green-100 rounded"
+            title="エクスポート"
+          >
+            <Download size={12} className="text-green-600" />
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(conversation.id);
+            }}
+            className="p-1 hover:bg-red-100 rounded"
+            title="削除"
+          >
+            <Trash2 size={12} className="text-red-600" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}, (prevProps, nextProps) => {
+  // カスタム比較関数: 会話ID、タイトル、更新日時、アクティブ状態が同じなら再レンダリングしない
+  return prevProps.conversation.id === nextProps.conversation.id &&
+         prevProps.conversation.title === nextProps.conversation.title &&
+         prevProps.conversation.updated === nextProps.conversation.updated &&
+         prevProps.conversation.messages.length === nextProps.conversation.messages.length &&
+         prevProps.conversation.participantIds.length === nextProps.conversation.participantIds.length &&
+         prevProps.isActive === nextProps.isActive &&
+         prevProps.editingConversationTitle === nextProps.editingConversationTitle &&
+         prevProps.editingTitleText === nextProps.editingTitleText;
+});
+
+// Message Bubble Component
+// ===== パフォーマンス最適化: React.memoでメモ化されたメッセージバブル =====
+// メッセージの内容が変更された場合のみ再レンダリングされます
+
+// ConversationSettingsPanel
 const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpdate, onClose }) => {
   const [localTitle, setLocalTitle] = useState(conversation.title);
   const [localBackground, setLocalBackground] = useState(conversation.backgroundInfo);
@@ -3175,6 +3610,8 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpda
  * キャラクター管理モーダルコンポーネント
  * characters配列が変更された時のみ再レンダリング
  */
+
+// CharacterModal
 const CharacterModal = React.memo(({ characters, setCharacters, characterGroups, setCharacterGroups, getDefaultCharacter, exportCharacter, importCharacter, characterFileInputRef, emotions, onClose }) => {
   const [editingChar, setEditingChar] = useState(null);
   const [isNew, setIsNew] = useState(false);
@@ -4174,413 +4611,5 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
 
 // Confirmation Dialog Component
 // Emoji Picker Component
-const EmojiPicker = ({ onSelect, onClose }) => {
-  const [activeCategory, setActiveCategory] = useState('smileys');
-
-  const emojiCategories = {
-    smileys: {
-      name: '😊 顔',
-      emojis: ['😀', '😃', '😄', '😁', '😆', '😅', '🤣', '😂', '🙂', '🙃', '😉', '😊', '😇', '🥰', '😍', '🤩', '😘', '😗', '😚', '😙', '🥲', '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭', '🤫', '🤔', '🤐', '🤨', '😐', '😑', '😶', '😏', '😒', '🙄', '😬', '🤥', '😌', '😔', '😪', '🤤', '😴', '😷', '🤒', '🤕', '🤢', '🤮', '🤧', '🥵', '🥶', '😶‍🌫️', '🥴', '😵', '🤯', '🤠', '🥳', '😎', '🤓', '🧐']
-    },
-    animals: {
-      name: '🐶 動物',
-      emojis: ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🐤', '🦆', '🦅', '🦉', '🦇', '🐺', '🐗', '🐴', '🦄', '🐝', '🐛', '🦋', '🐌', '🐞', '🐜', '🦟', '🦗', '🕷️', '🦂', '🐢', '🐍', '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀', '🐡', '🐠', '🐟', '🐬', '🐳', '🐋', '🦈', '🐊', '🐅', '🐆', '🦓', '🦍', '🦧', '🐘', '🦛', '🦏', '🐪', '🐫', '🦒', '🦘', '🐃', '🐂', '🐄', '🐎', '🐖', '🐏', '🐑', '🦙', '🐐', '🦌', '🐕', '🐩', '🦮', '🐕‍🦺', '🐈', '🐈‍⬛', '🐓', '🦃', '🦚', '🦜', '🦢', '🦩', '🕊️', '🐇', '🦝', '🦨', '🦡', '🦦', '🦥', '🐁', '🐀', '🐿️', '🦔']
-    },
-    food: {
-      name: '🍕 食べ物',
-      emojis: ['🍎', '🍏', '🍐', '🍊', '🍋', '🍌', '🍉', '🍇', '🍓', '🫐', '🍈', '🍒', '🍑', '🥭', '🍍', '🥥', '🥝', '🍅', '🍆', '🥑', '🥦', '🥬', '🥒', '🌶️', '🫑', '🌽', '🥕', '🫒', '🧄', '🧅', '🥔', '🍠', '🥐', '🥯', '🍞', '🥖', '🥨', '🧀', '🥚', '🍳', '🧈', '🥞', '🧇', '🥓', '🥩', '🍗', '🍖', '🦴', '🌭', '🍔', '🍟', '🍕', '🫓', '🥪', '🥙', '🧆', '🌮', '🌯', '🫔', '🥗', '🥘', '🫕', '🥫', '🍝', '🍜', '🍲', '🍛', '🍣', '🍱', '🥟', '🦪', '🍤', '🍙', '🍚', '🍘', '🍥', '🥠', '🥮', '🍢', '🍡', '🍧', '🍨', '🍦', '🥧', '🧁', '🍰', '🎂', '🍮', '🍭', '🍬', '🍫', '🍿', '🍩', '🍪', '🌰', '🥜', '🍯']
-    },
-    activities: {
-      name: '⚽ 活動',
-      emojis: ['⚽', '🏀', '🏈', '⚾', '🥎', '🎾', '🏐', '🏉', '🥏', '🎱', '🪀', '🏓', '🏸', '🏒', '🏑', '🥍', '🏏', '🥅', '⛳', '🪁', '🏹', '🎣', '🤿', '🥊', '🥋', '🎽', '🛹', '🛼', '🛷', '⛸️', '🥌', '🎿', '⛷️', '🏂', '🪂', '🏋️', '🤼', '🤸', '🤺', '🤾', '🏌️', '🏇', '🧘', '🏊', '🚣', '🧗', '🚵', '🚴', '🏎️', '🏍️', '🤹', '🎭', '🩰', '🎨', '🎬', '🎤', '🎧', '🎼', '🎹', '🥁', '🎷', '🎺', '🎸', '🪕', '🎻', '🎲', '♟️', '🎯', '🎳', '🎮', '🎰', '🧩']
-    },
-    travel: {
-      name: '✈️ 旅行',
-      emojis: ['🚗', '🚕', '🚙', '🚌', '🚎', '🏎️', '🚓', '🚑', '🚒', '🚐', '🛻', '🚚', '🚛', '🚜', '🦯', '🦽', '🦼', '🛴', '🚲', '🛵', '🏍️', '🛺', '🚨', '🚔', '🚍', '🚘', '🚖', '🚡', '🚠', '🚟', '🚃', '🚋', '🚞', '🚝', '🚄', '🚅', '🚈', '🚂', '🚆', '🚇', '🚊', '🚉', '✈️', '🛫', '🛬', '🛩️', '💺', '🛰️', '🚀', '🛸', '🚁', '🛶', '⛵', '🚤', '🛥️', '🛳️', '⛴️', '🚢', '⚓', '⛽', '🚧', '🚦', '🚥', '🗺️', '🗿', '🗽', '🗼', '🏰', '🏯', '🏟️', '🎡', '🎢', '🎠', '⛲', '⛱️', '🏖️', '🏝️', '🏜️', '🌋', '⛰️', '🏔️', '🗻', '🏕️', '⛺', '🏠', '🏡', '🏘️', '🏚️', '🏗️', '🏭', '🏢', '🏬', '🏣', '🏤', '🏥', '🏦', '🏨', '🏪', '🏫', '🏩', '💒', '🏛️', '⛪', '🕌', '🛕', '🕍', '⛩️', '🕋']
-    },
-    objects: {
-      name: '📱 物',
-      emojis: ['⌚', '📱', '📲', '💻', '⌨️', '🖥️', '🖨️', '🖱️', '🖲️', '🕹️', '🗜️', '💾', '💿', '📀', '📼', '📷', '📸', '📹', '🎥', '📽️', '🎞️', '📞', '☎️', '📟', '📠', '📺', '📻', '🎙️', '🎚️', '🎛️', '🧭', '⏱️', '⏲️', '⏰', '🕰️', '⌛', '⏳', '📡', '🔋', '🔌', '💡', '🔦', '🕯️', '🪔', '🧯', '🛢️', '💸', '💵', '💴', '💶', '💷', '🪙', '💰', '💳', '🪪', '💎', '⚖️', '🪜', '🧰', '🪛', '🔧', '🔨', '⚒️', '🛠️', '⛏️', '🪚', '🔩', '⚙️', '🪤', '🧱', '⛓️', '🧲', '🔫', '💣', '🧨', '🪓', '🔪', '🗡️', '⚔️', '🛡️', '🚬', '⚰️', '🪦', '⚱️', '🏺', '🔮', '📿', '🧿', '💈', '⚗️', '🔭', '🔬', '🕳️', '🩹', '🩺', '💊', '💉', '🩸', '🧬', '🦠', '🧫', '🧪', '🌡️', '🧹', '🪠', '🧺', '🧻', '🚽', '🚰', '🚿', '🛁', '🛀', '🧼', '🪥', '🪒', '🧽', '🪣', '🧴', '🛎️', '🔑', '🗝️', '🚪', '🪑', '🛋️', '🛏️', '🛌', '🧸', '🪆', '🖼️', '🪞', '🪟', '🛍️', '🎁', '🎈', '🎏', '🎀', '🪄', '🪅', '🎊', '🎉', '🎎', '🏮', '🎐', '🧧', '✉️', '📩', '📨', '📧', '💌', '📥', '📤', '📦', '🏷️', '🪧', '📪', '📫', '📬', '📭', '📮', '📯', '📜', '📃', '📄', '📑', '🧾', '📊', '📈', '📉', '🗒️', '🗓️', '📆', '📅', '🗑️', '📇', '🗃️', '🗳️', '🗄️', '📋', '📁', '📂', '🗂️', '🗞️', '📰', '📓', '📔', '📒', '📕', '📗', '📘', '📙', '📚', '📖', '🔖', '🧷', '🔗', '📎', '🖇️', '📐', '📏', '🧮', '📌', '📍', '✂️', '🖊️', '🖋️', '✒️', '🖌️', '🖍️', '📝', '✏️', '🔍', '🔎', '🔏', '🔐', '🔒', '🔓']
-    },
-    symbols: {
-      name: '❤️ 記号',
-      emojis: ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❤️‍🔥', '❤️‍🩹', '❣️', '💕', '💞', '💓', '💗', '💖', '💘', '💝', '💟', '☮️', '✝️', '☪️', '🕉️', '☸️', '✡️', '🔯', '🕎', '☯️', '☦️', '🛐', '⛎', '♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓', '🆔', '⚛️', '🉑', '☢️', '☣️', '📴', '📳', '🈶', '🈚', '🈸', '🈺', '🈷️', '✴️', '🆚', '💮', '🉐', '㊙️', '㊗️', '🈴', '🈵', '🈹', '🈲', '🅰️', '🅱️', '🆎', '🆑', '🅾️', '🆘', '❌', '⭕', '🛑', '⛔', '📛', '🚫', '💯', '💢', '♨️', '🚷', '🚯', '🚳', '🚱', '🔞', '📵', '🚭', '❗', '❕', '❓', '❔', '‼️', '⁉️', '🔅', '🔆', '〽️', '⚠️', '🚸', '🔱', '⚜️', '🔰', '♻️', '✅', '🈯', '💹', '❇️', '✳️', '❎', '🌐', '💠', 'Ⓜ️', '🌀', '💤', '🏧', '🚾', '♿', '🅿️', '🛗', '🈳', '🈂️', '🛂', '🛃', '🛄', '🛅', '🚹', '🚺', '🚼', '⚧️', '🚻', '🚮', '🎦', '📶', '🈁', '🔣', 'ℹ️', '🔤', '🔡', '🔠', '🆖', '🆗', '🆙', '🆒', '🆕', '🆓', '0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟', '🔢', '#️⃣', '*️⃣', '⏏️', '▶️', '⏸️', '⏯️', '⏹️', '⏺️', '⏭️', '⏮️', '⏩', '⏪', '⏫', '⏬', '◀️', '🔼', '🔽', '➡️', '⬅️', '⬆️', '⬇️', '↗️', '↘️', '↙️', '↖️', '↕️', '↔️', '↪️', '↩️', '⤴️', '⤵️', '🔀', '🔁', '🔂', '🔄', '🔃', '🎵', '🎶', '➕', '➖', '➗', '✖️', '🟰', '♾️', '💲', '💱', '™️', '©️', '®️', '〰️', '➰', '➿', '🔚', '🔙', '🔛', '🔝', '🔜', '✔️', '☑️', '🔘', '🔴', '🟠', '🟡', '🟢', '🔵', '🟣', '⚫', '⚪', '🟤', '🔺', '🔻', '🔸', '🔹', '🔶', '🔷', '🔳', '🔲', '▪️', '▫️', '◾', '◽', '◼️', '◻️', '🟥', '🟧', '🟨', '🟩', '🟦', '🟪', '⬛', '⬜', '🟫', '🔈', '🔇', '🔉', '🔊', '🔔', '🔕', '📣', '📢', '👁️‍🗨️', '💬', '💭', '🗯️', '♠️', '♣️', '♥️', '♦️', '🃏', '🎴', '🀄', '🕐', '🕑', '🕒', '🕓', '🕔', '🕕', '🕖', '🕗', '🕘', '🕙', '🕚', '🕛', '🕜', '🕝', '🕞', '🕟', '🕠', '🕡', '🕢', '🕣', '🕤', '🕥', '🕦', '🕧']
-    }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
-      }}
-    >
-      <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-lg"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="text-lg font-bold text-gray-800">絵文字を選択</h3>
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onClose();
-            }}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="flex border-b overflow-x-auto">
-          {Object.entries(emojiCategories).map(([key, category]) => (
-            <button
-              key={key}
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                setActiveCategory(key);
-              }}
-              className={`px-4 py-2 text-sm whitespace-nowrap ${
-                activeCategory === key
-                  ? 'border-b-2 border-purple-600 text-purple-600 font-medium'
-                  : 'text-gray-600 hover:bg-gray-50'
-              }`}
-            >
-              {category.name}
-            </button>
-          ))}
-        </div>
-
-        <div className="p-4 h-80 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-          <div className="grid grid-cols-8 gap-2">
-            {emojiCategories[activeCategory].emojis.map((emoji, index) => (
-              <button
-                key={index}
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  onSelect(emoji);
-                  onClose();
-                }}
-                className="text-3xl p-2 hover:bg-gray-100 rounded-lg transition"
-              >
-                {emoji}
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Image Cropper Component
-const ImageCropper = ({ imageSrc, onCrop, onCancel }) => {
-  const canvasRef = useRef(null);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1.0);
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [imageSize, setImageSize] = useState({ width: 0, height: 0 });
-  const imageRef = useRef(null);
-
-  useEffect(() => {
-    const img = new window.Image();
-    img.onload = () => {
-      setImageSize({ width: img.width, height: img.height });
-      imageRef.current = img;
-      drawCanvas();
-    };
-    img.src = imageSrc;
-  }, [imageSrc]);
-
-  useEffect(() => {
-    drawCanvas();
-  }, [crop, zoom, imageSize]);
-
-  const drawCanvas = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !imageRef.current) return;
-
-    const ctx = canvas.getContext('2d');
-    const canvasSize = 400;
-    canvas.width = canvasSize;
-    canvas.height = canvasSize;
-
-    // Clear canvas
-    ctx.fillStyle = '#000';
-    ctx.fillRect(0, 0, canvasSize, canvasSize);
-
-    // Calculate base scale to fit image in canvas
-    const maxDimension = Math.max(imageSize.width, imageSize.height);
-    const baseScale = canvasSize / maxDimension;
-
-    // Apply user zoom on top of base scale
-    const scale = baseScale * zoom;
-    const imgWidth = imageSize.width * scale;
-    const imgHeight = imageSize.height * scale;
-
-    // Draw image
-    ctx.drawImage(
-      imageRef.current,
-      crop.x,
-      crop.y,
-      imgWidth,
-      imgHeight
-    );
-
-    // Draw crop circle overlay
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-    ctx.fillRect(0, 0, canvasSize, canvasSize);
-
-    ctx.globalCompositeOperation = 'destination-out';
-    ctx.beginPath();
-    ctx.arc(canvasSize / 2, canvasSize / 2, 150, 0, 2 * Math.PI);
-    ctx.fill();
-
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(canvasSize / 2, canvasSize / 2, 150, 0, 2 * Math.PI);
-    ctx.stroke();
-  };
-
-  const handlePointerDown = (e) => {
-    setIsDragging(true);
-    setDragStart({ x: e.clientX - crop.x, y: e.clientY - crop.y });
-  };
-
-  const handlePointerMove = (e) => {
-    if (!isDragging) return;
-    setCrop({
-      x: e.clientX - dragStart.x,
-      y: e.clientY - dragStart.y
-    });
-  };
-
-  const handlePointerUp = () => {
-    setIsDragging(false);
-  };
-
-  const handleCrop = () => {
-    const canvas = canvasRef.current;
-    if (!canvas || !imageRef.current) return;
-
-    // Create output canvas
-    const outputCanvas = document.createElement('canvas');
-    const outputSize = 300;
-    outputCanvas.width = outputSize;
-    outputCanvas.height = outputSize;
-    const outputCtx = outputCanvas.getContext('2d');
-
-    // Calculate crop area
-    const canvasSize = 400;
-    const cropRadius = 150;
-    const centerX = canvasSize / 2;
-    const centerY = canvasSize / 2;
-
-    // Calculate base scale to fit image in canvas
-    const maxDimension = Math.max(imageSize.width, imageSize.height);
-    const baseScale = canvasSize / maxDimension;
-
-    // Apply user zoom on top of base scale
-    const scale = baseScale * zoom;
-    const imgWidth = imageSize.width * scale;
-    const imgHeight = imageSize.height * scale;
-
-    // Calculate source crop coordinates
-    const sourceX = (centerX - cropRadius - crop.x) / scale;
-    const sourceY = (centerY - cropRadius - crop.y) / scale;
-    const sourceSize = (cropRadius * 2) / scale;
-
-    // Draw cropped circle
-    outputCtx.beginPath();
-    outputCtx.arc(outputSize / 2, outputSize / 2, outputSize / 2, 0, 2 * Math.PI);
-    outputCtx.clip();
-
-    outputCtx.drawImage(
-      imageRef.current,
-      sourceX,
-      sourceY,
-      sourceSize,
-      sourceSize,
-      0,
-      0,
-      outputSize,
-      outputSize
-    );
-
-    // WebP形式で圧縮（70%品質）、対応していない場合はJPEG
-    const mimeType = outputCanvas.toDataURL('image/webp').indexOf('data:image/webp') === 0
-      ? 'image/webp'
-      : 'image/jpeg';
-    const croppedImage = outputCanvas.toDataURL(mimeType, 0.7);
-    onCrop(croppedImage);
-  };
-
-  return (
-    <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onCancel();
-        }
-      }}
-    >
-      <div
-        className="bg-white rounded-lg shadow-xl w-full max-w-md"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between p-4 border-b">
-          <h3 className="text-lg font-bold text-gray-800">画像をクロップ</h3>
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onCancel();
-            }}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="p-4 space-y-4" onClick={(e) => e.stopPropagation()}>
-          <div className="relative">
-            <canvas
-              ref={canvasRef}
-              width={400}
-              height={400}
-              className="w-full h-auto border border-gray-300 rounded-lg cursor-move"
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerLeave={handlePointerUp}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-gray-700">
-              ズーム: {zoom.toFixed(1)}x
-            </label>
-            <input
-              type="range"
-              min="0.5"
-              max="3"
-              step="0.1"
-              value={zoom}
-              onChange={(e) => setZoom(parseFloat(e.target.value))}
-              className="w-full"
-            />
-          </div>
-
-          <div className="text-sm text-gray-600 bg-blue-50 p-3 rounded">
-            💡 画像をドラッグして位置を調整し、スライダーでズームできます
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleCrop();
-              }}
-              className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium"
-            >
-              クロップ
-            </button>
-            <button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                onCancel();
-              }}
-              className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-            >
-              キャンセル
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// ===== パフォーマンス最適化: React.memoでメモ化された確認ダイアログ =====
-const ConfirmDialog = React.memo(({ title, message, onConfirm, onCancel }) => {
-  return (
-    <div
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onCancel();
-        }
-      }}
-    >
-      <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
-        <div className="p-6">
-          <h3 className="text-lg font-bold text-gray-800 mb-4">{title}</h3>
-          <p className="text-gray-600 whitespace-pre-line mb-6">{message}</p>
-          <div className="flex gap-3 justify-end">
-            <button
-              onClick={onCancel}
-              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
-            >
-              キャンセル
-            </button>
-            <button
-              onClick={onConfirm}
-              className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-});
-
-// ===== パフォーマンス最適化: React.memoでメモ化されたアバター表示 =====
-const AvatarDisplay = React.memo(({ character, size = 'md' }) => {
-  if (!character) return null;
-
-  const sizeClasses = {
-    sm: 'w-6 h-6 text-sm',
-    md: 'w-10 h-10 text-2xl',
-    lg: 'w-16 h-16 text-4xl'
-  };
-
-  const sizeClass = sizeClasses[size] || sizeClasses.md;
-
-  if (character.features.avatarType === 'image' && character.features.avatarImage) {
-    return (
-      <div className={`${sizeClass} rounded-full overflow-hidden flex-shrink-0 bg-gray-100`}>
-        <img
-          src={character.features.avatarImage}
-          alt={character.name}
-          className="w-full h-full object-cover"
-        />
-      </div>
-    );
-  }
-
-  return (
-    <span className={`${sizeClass} flex items-center justify-center flex-shrink-0`}>
-      {character.features.avatar || '😊'}
-    </span>
-  );
-}, (prevProps, nextProps) => {
-  // キャラクターIDとアバター設定が同じなら再レンダリングしない
-  return prevProps.character?.id === nextProps.character?.id &&
-         prevProps.character?.features.avatar === nextProps.character?.features.avatar &&
-         prevProps.character?.features.avatarImage === nextProps.character?.features.avatarImage &&
-         prevProps.size === nextProps.size;
-});
 
 export default MultiCharacterChat;
