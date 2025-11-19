@@ -17,21 +17,351 @@
 - 空行の最適化
 - 結果: 225バイト削減
 
-### ✅ Phase 2: 論理的な再構成（2025-11-19実装）
-- MultiCharacterChat内のセクション区切りコメント追加
+### ⚠️ Phase 2: 論理的な再構成（2025-11-19部分実装）
+
+**実装済み**:
+- ✅ MultiCharacterChat内のセクション区切りコメント追加（6セクション）
   - State管理
   - Refs
   - 定数定義
   - Memoized値
   - イベントハンドラー・操作関数
   - 副作用（useEffect）
-- サブコンポーネントの依存関係順並び替え
+- ✅ サブコンポーネントの依存関係順並び替え
   - 小→大、依存先→依存元の順序
   - AvatarDisplay → ConfirmDialog → EmojiPicker → ImageCropper → MessageBubble → ConversationListItem → ConversationSettingsPanel → CharacterModal
+
+**未実装**:
+- ❌ セクション内の細かいグループ化（Phase 2.5で実施予定）
+- ❌ 定数定義の統合・整理
+- ❌ ヘルパー関数の適切な配置
+- ❌ 古いコメントの削除
+- ❌ フックの依存関係順配置
 
 ---
 
 ## 未実装項目（将来的な計画）
+
+### 📋 Phase 2.5: 詳細な論理的再構成（未実装）
+
+#### 目的
+Phase 2で追加したセクション区切りをさらに細分化し、コードの役割をより明確にする。構造を整理することで可読性と保守性を大幅に向上させる。
+
+#### 実施内容
+
+**1. Stateの細かいグループ化**
+
+現状の問題点:
+- すべてのstate（30+個）が「===== State管理 =====」の下に羅列されている
+- 役割ごとの区別がつきにくい
+- 定数定義セクションの間にconfirmDialog stateが挟まっている（304行目）
+
+改善案:
+```javascript
+// ===== State管理 =====
+
+// --- 初期化State ---
+const [isInitialized, setIsInitialized] = useState(false);
+
+// --- キャラクター関連State ---
+const [characters, setCharacters] = useState([]);
+const [characterGroups, setCharacterGroups] = useState([]);
+const [showCharacterModal, setShowCharacterModal] = useState(false);
+
+// --- 会話関連State ---
+const [conversations, setConversations] = useState([]);
+const [currentConversationId, setCurrentConversationId] = useState(null);
+
+// --- メッセージ入力State ---
+const [userPrompt, setUserPrompt] = useState('');
+const [messageType, setMessageType] = useState('user');
+const [nextSpeaker, setNextSpeaker] = useState(null);
+const [prefillText, setPrefillText] = useState('');
+
+// --- API関連State ---
+const [isLoading, setIsLoading] = useState(false);
+const [error, setError] = useState('');
+
+// --- モデル設定State ---
+const [models, setModels] = useState([]);
+const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5-20250929');
+const [isLoadingModels, setIsLoadingModels] = useState(false);
+
+// --- Thinking機能State ---
+const [thinkingEnabled, setThinkingEnabled] = useState(false);
+const [thinkingBudget, setThinkingBudget] = useState(2000);
+const [showThinking, setShowThinking] = useState({});
+
+// --- 編集関連State ---
+const [editingIndex, setEditingIndex] = useState(null);
+const [editingContent, setEditingContent] = useState('');
+const [regeneratePrefill, setRegeneratePrefill] = useState('');
+const [showRegeneratePrefill, setShowRegeneratePrefill] = useState(null);
+const [editingConversationTitle, setEditingConversationTitle] = useState(null);
+const [editingTitleText, setEditingTitleText] = useState('');
+
+// --- バージョン管理State ---
+const [showVersions, setShowVersions] = useState({});
+
+// --- 統計State ---
+const [usageStats, setUsageStats] = useState({
+  inputTokens: 0,
+  outputTokens: 0,
+  totalTokens: 0,
+  requestCount: 0
+});
+
+// --- ストレージState ---
+const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+const [lastSaved, setLastSaved] = useState(null);
+const [saveStatus, setSaveStatus] = useState('');
+
+// --- UI State ---
+const [showSettings, setShowSettings] = useState(false);
+const [showSidebar, setShowSidebar] = useState(false);
+const [sidebarView, setSidebarView] = useState('conversations');
+const [showConversationSettings, setShowConversationSettings] = useState(false);
+const [visibleMessageCount, setVisibleMessageCount] = useState(100);
+
+// --- ダイアログState ---
+const [confirmDialog, setConfirmDialog] = useState(null);
+```
+
+**2. Refsセクションの整理**
+
+現状の問題点:
+- Refsセクションの直前に古いコメント「// Refs」（306行目）が残っている
+
+改善案: 古いコメントを削除
+
+**3. 定数定義セクションの統合**
+
+現状の問題点:
+- 「===== 定数定義 =====」が2箇所に分かれている（300行、315行）
+- 間にconfirmDialog state（304行）とRefsセクション（308行）が挟まっている
+
+改善案:
+```javascript
+// ===== 定数定義 =====
+
+// --- 表示設定 ---
+const MESSAGE_LOAD_INCREMENT = 50; // 「もっと見る」で読み込む件数
+
+// --- ストレージ設定 ---
+const STORAGE_KEY = 'multi-character-chat-data-v1';
+const AUTO_SAVE_DELAY = 2000; // ミリ秒
+
+// --- ファイル設定 ---
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
+
+// --- モデル定義 ---
+const fallbackModels = [
+  { id: 'claude-opus-4-1-20250805', name: 'Opus 4.1', icon: '👑' },
+  { id: 'claude-opus-4-20250514', name: 'Opus 4', icon: '💎' },
+  { id: 'claude-sonnet-4-5-20250929', name: 'Sonnet 4.5', icon: '⭐' },
+  { id: 'claude-sonnet-4-20250514', name: 'Sonnet 4', icon: '✨' },
+  { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5', icon: '⚡' },
+  { id: 'claude-haiku-4-20250514', name: 'Haiku 4', icon: '💨' }
+];
+
+// --- 感情定義 ---
+const emotions = {
+  joy: { label: '喜', emoji: '😊', color: 'text-yellow-500' },
+  anger: { label: '怒', emoji: '😠', color: 'text-red-500' },
+  sadness: { label: '哀', emoji: '😢', color: 'text-blue-500' },
+  fun: { label: '楽', emoji: '😆', color: 'text-green-500' },
+  embarrassed: { label: '照', emoji: '😳', color: 'text-pink-500' },
+  surprised: { label: '驚', emoji: '😲', color: 'text-purple-500' },
+  neutral: { label: '中', emoji: '😐', color: 'text-gray-500' }
+};
+```
+
+**4. ヘルパー関数セクションの追加**
+
+現状の問題点:
+- generateId, getIconForModel, getShortName, getDefaultCharacter, getDefaultConversation（340～413行）がセクション外に配置されている
+- これらは定数定義セクションの後、Memoized値セクションの前に配置されている
+
+改善案:
+```javascript
+// ===== ヘルパー関数 =====
+
+// --- ID生成 ---
+const generateId = () => {
+  return Date.now().toString(36) + Math.random().toString(36).substr(2);
+};
+
+// --- モデル表示ヘルパー ---
+const getIconForModel = (displayName, modelId) => {
+  const name = (displayName || modelId).toLowerCase();
+  if (name.includes('opus')) return '👑';
+  if (name.includes('sonnet')) return '⭐';
+  if (name.includes('haiku')) return '⚡';
+  return '🤖';
+};
+
+const getShortName = (displayName, modelId) => {
+  if (displayName) {
+    return displayName.replace('Claude ', '');
+  }
+  if (modelId.includes('opus')) {
+    if (modelId.includes('4-1')) return 'Opus 4.1';
+    if (modelId.includes('4')) return 'Opus 4';
+  }
+  if (modelId.includes('sonnet')) {
+    if (modelId.includes('4-5')) return 'Sonnet 4.5';
+    if (modelId.includes('4')) return 'Sonnet 4';
+  }
+  if (modelId.includes('haiku')) {
+    if (modelId.includes('4-5')) return 'Haiku 4.5';
+    if (modelId.includes('4')) return 'Haiku 4';
+  }
+  return modelId;
+};
+
+// --- デフォルト値生成 ---
+const getDefaultCharacter = () => ({
+  // ... (省略)
+});
+
+const getDefaultConversation = () => ({
+  // ... (省略)
+});
+```
+
+**5. 古いコメントの削除**
+
+削除対象:
+- 306行: `// Refs`（Refsセクションヘッダーの直前）
+- 415行: `// ===== パフォーマンス最適化: useMemoで計算コストの高い値をメモ化 =====`（Memoized値セクションヘッダーの直前、重複コメント）
+
+**6. Memoized値の細かいグループ化**
+
+現在のセクション構成:
+```
+// ===== Memoized値（データ取得・計算）=====
+```
+
+改善案（さらに細分化）:
+```javascript
+// ===== Memoized値 =====
+
+// --- データ取得 ---
+const getCurrentConversation = useMemo(...);
+const currentMessages = useMemo(...);
+const getCharacterMap = useMemo(...);
+
+// --- 計算値・加工データ ---
+const sortedCharacters = useMemo(...);
+const filteredMessages = useMemo(...);
+const visibleMessages = useMemo(...);
+```
+
+**7. イベントハンドラーの細かいグループ化**
+
+現在のセクション構成:
+```
+// ===== イベントハンドラー・操作関数（useCallback）=====
+```
+
+改善案（さらに細分化）:
+```javascript
+// ===== イベントハンドラー・操作関数 =====
+
+// --- キャラクター操作 ---
+const getCharacterById = useCallback(...);
+const handleAddCharacter = useCallback(...);
+const handleUpdateCharacter = useCallback(...);
+const handleDeleteCharacter = useCallback(...);
+
+// --- 会話操作 ---
+const handleCreateConversation = useCallback(...);
+const handleSelectConversation = useCallback(...);
+const handleUpdateConversation = useCallback(...);
+const handleDeleteConversation = useCallback(...);
+const handleForkConversation = useCallback(...);
+
+// --- メッセージ操作 ---
+const handleSendMessage = useCallback(...);
+const handleEditMessage = useCallback(...);
+const handleDeleteMessage = useCallback(...);
+const handleRegenerateMessage = useCallback(...);
+
+// --- UI操作 ---
+const handleToggleSidebar = useCallback(...);
+const handleOpenSettings = useCallback(...);
+const handleOpenCharacterModal = useCallback(...);
+
+// --- データ操作 ---
+const handleSaveData = useCallback(...);
+const handleLoadData = useCallback(...);
+const handleImport = useCallback(...);
+const handleExport = useCallback(...);
+```
+
+**8. 副作用（useEffect）のグループ化**
+
+現在のセクション構成:
+```
+// ===== 副作用（useEffect）=====
+```
+
+改善案（さらに細分化）:
+```javascript
+// ===== 副作用（useEffect）=====
+
+// --- 初期化 ---
+useEffect(() => {
+  // データロード
+}, []);
+
+// --- 自動保存 ---
+useEffect(() => {
+  // 自動保存処理
+}, [characters, conversations, ...]);
+
+// --- UI同期 ---
+useEffect(() => {
+  // スクロール処理など
+}, [messages]);
+```
+
+#### 推定効果
+- **コード量**: ±0～+30行（コメント追加により微増）
+- **可読性**: 大幅向上（★★★★★）
+- **保守性**: 大幅向上（★★★★★）
+- **バグ混入リスク**: 極めて低い（コメントと並び替えのみ）
+
+#### リスク
+- 🟢 **極めて低**: コメント追加と順序変更のみで、ロジックの変更なし
+- 唯一のリスク: State間に依存関係がある場合、順序変更により初期化順序が変わる可能性（ただし、Reactのフックルールにより同じレンダリング内での順序は保証される）
+
+#### 推奨アプローチ
+1. **State、Refsを移動せずコメント追加のみ**
+   - 既存の順序を維持しながらグループ化コメントを追加
+   - リスク最小化
+
+2. **定数定義の統合**
+   - 2箇所に分かれている定数を1箇所にまとめる
+   - confirmDialog stateを適切な位置に移動
+
+3. **ヘルパー関数セクションの作成**
+   - generateIdなどの関数を新セクションに配置
+
+4. **古いコメントの削除**
+   - 重複コメント、不要コメントを削除
+
+5. **段階的実施**
+   - 各変更後にブラケットバランスチェック
+   - コミット前に構文チェック
+
+#### 実装優先度
+**最優先（Phase 2.5として即座に実施可能）**:
+- リスクが極めて低い
+- 効果が大きい（可読性・保守性の大幅向上）
+- 他のPhaseの基礎となる
+
+---
 
 ### 📋 Phase 3: コード重複削除（未実装）
 
@@ -229,95 +559,7 @@
 
 ---
 
-### 📋 Phase 6: 詳細な関数グループ化（未実装）
-
-#### 目的
-現在のセクション区切りをさらに細分化し、関数の役割をより明確にする。
-
-#### 実施内容（案）
-
-現在のセクション構成：
-```
-- State管理
-- Refs
-- 定数定義
-- Memoized値
-- イベントハンドラー・操作関数
-- 副作用
-```
-
-改善案（さらに細分化）:
-
-```javascript
-// ===== State管理 =====
-
-// --- 基本State ---
-const [isInitialized, setIsInitialized] = useState(false);
-const [characters, setCharacters] = useState([]);
-const [conversations, setConversations] = useState([]);
-
-// --- UI State ---
-const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-const [isCharacterModalOpen, setIsCharacterModalOpen] = useState(false);
-
-// --- メッセージ関連State ---
-const [messages, setMessages] = useState({});
-const [visibleMessageCount, setVisibleMessageCount] = useState(50);
-
-// --- エディタ関連State ---
-const [inputMessage, setInputMessage] = useState('');
-const [isComposing, setIsComposing] = useState(false);
-
-
-// ===== Memoized値 =====
-
-// --- データ取得 ---
-const getCurrentConversation = useMemo(...);
-const currentMessages = useMemo(...);
-
-// --- 計算値 ---
-const sortedCharacters = useMemo(...);
-const characterMap = useMemo(...);
-
-
-// ===== イベントハンドラー =====
-
-// --- キャラクター操作 ---
-const getCharacterById = useCallback(...);
-const handleAddCharacter = useCallback(...);
-const handleUpdateCharacter = useCallback(...);
-
-// --- 会話操作 ---
-const handleCreateConversation = useCallback(...);
-const handleDeleteConversation = useCallback(...);
-
-// --- メッセージ操作 ---
-const handleSendMessage = useCallback(...);
-const handleEditMessage = useCallback(...);
-const handleDeleteMessage = useCallback(...);
-
-// --- UI操作 ---
-const handleToggleSidebar = useCallback(...);
-const handleOpenCharacterModal = useCallback(...);
-```
-
-#### 推定効果
-- コード量: ±0行（コメント追加により微増の可能性）
-- 可読性: 大幅向上
-- 保守性: 向上（関数の役割が明確化）
-
-#### リスク
-- 🟢 **低**: コメント追加のみのため、動作への影響なし
-
-#### 推奨アプローチ
-1. 関数の役割を分析
-2. 適切なサブセクション名を決定
-3. コメント追加
-4. 必要に応じて関数順序を微調整
-
----
-
-### 📋 Phase 7: アグレッシブなコメント最適化（保留）
+### 📋 Phase 6: アグレッシブなコメント最適化（保留）
 
 #### 目的
 コメントを圧縮・削除してコード量を削減する。
@@ -364,12 +606,14 @@ const handleOpenCharacterModal = useCallback(...);
 
 ## 実装優先度
 
-### 優先度: 高（比較的安全で効果的）
-1. **Phase 6: 詳細な関数グループ化**
-   - リスク: 低
-   - 効果: 可読性向上（大）
-   - 推定工数: 小
+### 優先度: 最高（即座に実施すべき）
+1. **Phase 2.5: 詳細な論理的再構成**
+   - リスク: 極めて低
+   - 効果: 可読性向上（大）+ 保守性向上（大）
+   - 推定工数: 小～中
+   - **推奨**: 最優先で実施
 
+### 優先度: 高（比較的安全で効果的）
 2. **Phase 5: 条件式の最適化**
    - リスク: 低～中
    - 効果: コード削減（小）+ 可読性向上（中）
@@ -387,11 +631,11 @@ const handleOpenCharacterModal = useCallback(...);
    - 推定工数: 大
 
 ### 優先度: 低（リスクが高い）
-5. **Phase 7: アグレッシブなコメント最適化**
+5. **Phase 6: アグレッシブなコメント最適化**
    - リスク: 高
    - 効果: コード削減（小～中）
    - 推定工数: 大
-   - **注意**: 過去の実装で失敗した経緯あり
+   - **注意**: 過去の実装で失敗した経緯あり（Phase 1で実施済み）
 
 ---
 
@@ -523,7 +767,15 @@ const handleOpenCharacterModal = useCallback(...);
 
 ## 更新履歴
 
-- **2025-11-19**: 初版作成
+- **2025-11-19 (2回目)**: Phase 2未実装項目の詳細化
+  - Phase 2を「部分実装」に変更（セクション区切り追加のみ実装済み）
+  - Phase 2.5追加: 詳細な論理的再構成（8項目の具体的な実施内容）
+  - Phase 6削除（Phase 2.5に統合）
+  - Phase 7 → Phase 6に番号変更
+  - 実装優先度更新（Phase 2.5を最優先に）
+  - 次のステップ更新
+
+- **2025-11-19 (初版)**: 初版作成
   - Phase 1, 2 実装完了
   - Phase 3～7 計画策定
   - 失敗事例の記録
@@ -532,7 +784,13 @@ const handleOpenCharacterModal = useCallback(...);
 
 ## 次のステップ
 
-1. **Phase 6 の実施を推奨**（最も安全で効果的）
+1. **Phase 2.5 の実施を強く推奨**（最も安全で効果が大きい）
+   - Stateの細かいグループ化コメント追加
+   - 定数定義の統合
+   - ヘルパー関数セクションの作成
+   - 古いコメントの削除
+   - イベントハンドラー・Memoized値・副作用のグループ化
+
 2. **Phase 5 の準備**（条件式の分析）
 3. **自動化ツールの改善**（AST解析の導入検討）
 4. **動作確認環境の整備**（実ブラウザでのテスト）
