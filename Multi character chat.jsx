@@ -597,7 +597,7 @@ const MultiCharacterChat = () => {
         const charName = charMatch[1].trim();
         const char = conversation.participantIds
           .map(id => getCharacterById(id))
-          .find(c => c && c.name === charName);
+          .find(c => c?.name === charName);
 
         currentType = 'character';
         currentCharacterId = char?.id || null;
@@ -643,7 +643,7 @@ const MultiCharacterChat = () => {
         const charName = anyCharMatch[1].trim();
         const char = conversation.participantIds
           .map(id => getCharacterById(id))
-          .find(c => c && c.name === charName);
+          .find(c => c?.name === charName);
         characterId = char?.id || null;
       }
 
@@ -1007,7 +1007,7 @@ const MultiCharacterChat = () => {
     const conv = conversations.find(c => c.id === conversationId);
     if (!conv) return;
 
-    const participantChars = conv.participantIds.map(id => getCharacterById(id)).filter(c => c);
+    const participantChars = conv.participantIds.map(id => getCharacterById(id)).filter(Boolean);
     const exportData = {
       conversation: conv,
       characters: participantChars,
