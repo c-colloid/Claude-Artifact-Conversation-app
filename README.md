@@ -49,7 +49,16 @@ Anthropic Claude APIを使用した高度なマルチキャラクター対話シ
    git clone https://github.com/c-colloid/Claude-Artifact-Conversation-app.git
    ```
 
-2. `Multi character chat.jsx` をClaude Artifactsで開く
+2. Claude.ai で新しいチャットを開く
+
+3. 以下のメッセージと `Multi character chat.jsx` ファイルを添付して送信:
+   ```
+   添付ファイルはインタラクティブアーティファクトのコードです
+   この機能を維持したまま、コメントは使用せず、コードの省略はせずに
+   インタラクティブアーティファクトとして提示してください
+   ```
+
+4. インタラクティブアーティファクトとして実行される
 
 ---
 
