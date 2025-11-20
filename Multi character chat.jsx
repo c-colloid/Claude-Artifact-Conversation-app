@@ -1575,19 +1575,21 @@ const MultiCharacterChat = () => {
     const totalMessages = getAllMessages.length;
     const currentStartIndex = totalMessages <= visibleMessageCount ? 0 : totalMessages - visibleMessageCount;
 
-    if (index < currentStartIndex) {
-      // メッセージが表示範囲より前にある場合、表示範囲を拡張
-      const newVisibleCount = totalMessages - index;
-      setVisibleMessageCount(newVisibleCount);
-
-      // 少し遅延させてからスクロール（DOM更新を待つ）
-      setTimeout(() => {
-        messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
-    } else {
-      // メッセージが表示範囲内にある場合、即座にスクロール
+    // メッセージが表示範囲内の場合は即座にスクロール
+    if (index >= currentStartIndex) {
       messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      setShowSidebar(false);
+      return;
     }
+
+    // メッセージが表示範囲より前にある場合、表示範囲を拡張してスクロール
+    const newVisibleCount = totalMessages - index;
+    setVisibleMessageCount(newVisibleCount);
+
+    // 少し遅延させてからスクロール（DOM更新を待つ）
+    setTimeout(() => {
+      messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 100);
 
     setShowSidebar(false);
   }, [getAllMessages.length, visibleMessageCount]);
