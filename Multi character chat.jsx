@@ -302,11 +302,6 @@ const MultiCharacterChat = () => {
   // --- ダイアログState ---
   const [confirmDialog, setConfirmDialog] = useState(null);
 
-  // ===== 定数定義 =====
-  const MESSAGE_LOAD_INCREMENT = 50; // 「もっと見る」で読み込む件数
-
-  // Refs
-
   // ===== Refs =====
   const messagesEndRef = useRef(null);
   const characterFileInputRef = useRef(null);
@@ -315,11 +310,18 @@ const MultiCharacterChat = () => {
   const textareaRef = useRef(null);
 
   // ===== 定数定義 =====
+
+  // --- 表示設定 ---
+  const MESSAGE_LOAD_INCREMENT = 50; // 「もっと見る」で読み込む件数
+
+  // --- ストレージ設定 ---
   const STORAGE_KEY = 'multi-character-chat-data-v1';
   const AUTO_SAVE_DELAY = 2000; // ミリ秒
+
+  // --- ファイル設定 ---
   const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
 
-  // Fallback models
+  // --- モデル定義 ---
   const fallbackModels = [
     { id: 'claude-opus-4-1-20250805', name: 'Opus 4.1', icon: '👑' },
     { id: 'claude-opus-4-20250514', name: 'Opus 4', icon: '💎' },
@@ -329,6 +331,7 @@ const MultiCharacterChat = () => {
     { id: 'claude-haiku-4-20250514', name: 'Haiku 4', icon: '💨' }
   ];
 
+  // --- 感情定義 ---
   const emotions = {
     joy: { label: '喜', emoji: '😊', color: 'text-yellow-500' },
     anger: { label: '怒', emoji: '😠', color: 'text-red-500' },
