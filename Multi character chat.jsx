@@ -196,7 +196,7 @@ const IndexedDBWrapper = {
    */
   setItem: async function(key, value) {
     return this.executeTransaction('readwrite',
-      (store) => store.put({ key, value, timestamp: getTimestamp() }),
+      (store) => store.put({ key, value, timestamp: new Date().toISOString() }),
       'データの保存に失敗しました'
     );
   },
@@ -349,10 +349,6 @@ const MultiCharacterChat = () => {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
   };
 
-  // --- タイムスタンプ生成 ---
-  const getTimestamp = () => getTimestamp();
-  const getTodayDate = () => getTodayDate();
-
   // --- モデル表示ヘルパー ---
   const getIconForModel = (displayName, modelId) => {
     const name = (displayName || modelId).toLowerCase();
@@ -407,8 +403,8 @@ const MultiCharacterChat = () => {
       avatarType: 'emoji', // 'emoji' or 'image'
       avatarImage: null // base64 encoded image data
     },
-    created: getTimestamp(),
-    updated: getTimestamp()
+    created: new Date().toISOString(),
+    updated: new Date().toISOString()
   });
 
   const getDefaultConversation = () => ({
@@ -422,8 +418,8 @@ const MultiCharacterChat = () => {
     parentConversationId: null, // For forked conversations
     forkPoint: null, // Message index where this was forked
     messages: [],
-    created: getTimestamp(),
-    updated: getTimestamp()
+    created: new Date().toISOString(),
+    updated: new Date().toISOString()
   });
 
   // ===== Memoized値 =====
@@ -564,7 +560,7 @@ const MultiCharacterChat = () => {
           }
 
           const messageId = generateId();
-          const timestamp = getTimestamp();
+          const timestamp = new Date().toISOString();
 
           messages.push({
             id: messageId,
@@ -654,7 +650,7 @@ const MultiCharacterChat = () => {
       let cleanContent = responseText.replace(/\[CHARACTER:[^\]]+\]|\[NARRATION\]|\[EMOTION:\w+\]|\[AFFECTION:\d+\]/g, '').trim();
 
       const messageId = generateId();
-      const timestamp = getTimestamp();
+      const timestamp = new Date().toISOString();
 
       messages.push({
         id: messageId,
@@ -687,7 +683,7 @@ const MultiCharacterChat = () => {
   const updateCharacter = useCallback((characterId, updates) => {
     setCharacters(chars => chars.map(c =>
       c.id === characterId
-        ? { ...c, ...updates, updated: getTimestamp() }
+        ? { ...c, ...updates, updated: new Date().toISOString() }
         : c
     ));
   }, []);
@@ -700,7 +696,7 @@ const MultiCharacterChat = () => {
   const updateConversation = useCallback((conversationId, updates) => {
     setConversations(prev => prev.map(conv =>
       conv.id === conversationId
-        ? { ...conv, ...updates, updated: getTimestamp() }
+        ? { ...conv, ...updates, updated: new Date().toISOString() }
         : conv
     ));
   }, []);
@@ -944,7 +940,7 @@ const MultiCharacterChat = () => {
       id: generateId(),
       name,
       characterIds,
-      created: getTimestamp()
+      created: new Date().toISOString()
     };
     setCharacterGroups(prev => [...prev, newGroup]);
     return newGroup.id;
@@ -1015,7 +1011,7 @@ const MultiCharacterChat = () => {
     const exportData = {
       conversation: conv,
       characters: participantChars,
-      exportDate: getTimestamp(),
+      exportDate: new Date().toISOString(),
       version: '1.0'
     };
 
@@ -1023,7 +1019,7 @@ const MultiCharacterChat = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `multi_conversation_${conv.title}_${getTodayDate()}.json`;
+    a.download = `multi_conversation_${conv.title}_${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1053,8 +1049,8 @@ const MultiCharacterChat = () => {
                 ...char,
                 id: newId,
                 name: `${char.name}（インポート）`,
-                created: getTimestamp(),
-                updated: getTimestamp()
+                created: new Date().toISOString(),
+                updated: new Date().toISOString()
               };
               setCharacters(prev => [...prev, importedChar]);
             }
@@ -1069,10 +1065,10 @@ const MultiCharacterChat = () => {
             messages: data.conversation.messages.map(msg => ({
               ...msg,
               characterId: msg.characterId ? (charIdMap[msg.characterId] ?? msg.characterId) : null,
-              timestamp: getTimestamp()
+              timestamp: new Date().toISOString()
             })),
-            created: getTimestamp(),
-            updated: getTimestamp()
+            created: new Date().toISOString(),
+            updated: new Date().toISOString()
           };
 
           setConversations(prev => [...prev, newConv]);
@@ -1098,7 +1094,7 @@ const MultiCharacterChat = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `character_${char.name}_${getTodayDate()}.json`;
+    a.download = `character_${char.name}_${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1117,8 +1113,8 @@ const MultiCharacterChat = () => {
           ...char,
           id: generateId(),
           name: `${char.name}（インポート）`,
-          created: getTimestamp(),
-          updated: getTimestamp()
+          created: new Date().toISOString(),
+          updated: new Date().toISOString()
         };
 
         setCharacters(prev => [...prev, newChar]);
@@ -1143,8 +1139,8 @@ const MultiCharacterChat = () => {
       ...JSON.parse(JSON.stringify(char)),
       id: generateId(),
       name: `${char.name}（コピー）`,
-      created: getTimestamp(),
-      updated: getTimestamp()
+      created: new Date().toISOString(),
+      updated: new Date().toISOString()
     };
 
     setCharacters(prev => [...prev, newChar]);
@@ -1350,7 +1346,7 @@ const MultiCharacterChat = () => {
       role: 'user',
       type: messageType,
       content: userPrompt,
-      timestamp: getTimestamp(),
+      timestamp: new Date().toISOString(),
       responseGroupId: null,
       alternatives: null
     };
@@ -1666,7 +1662,7 @@ const MultiCharacterChat = () => {
         thinkingEnabled,
         thinkingBudget,
         usageStats,
-        timestamp: getTimestamp(),
+        timestamp: new Date().toISOString(),
         version: '1.0'
       };
 
