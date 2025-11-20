@@ -353,8 +353,7 @@ const MultiCharacterChat = () => {
   const getTimestamp = () => new Date().toISOString();
   const getTodayDate = () => new Date().toISOString().slice(0, 10);
   const createTimestamps = () => ({
-    created: getTimestamp(),
-    updated: getTimestamp()
+    ...createTimestamps()
   });
 
   // --- モデル表示ヘルパー ---
@@ -411,8 +410,7 @@ const MultiCharacterChat = () => {
       avatarType: 'emoji', // 'emoji' or 'image'
       avatarImage: null // base64 encoded image data
     },
-    created: getTimestamp(),
-    updated: getTimestamp()
+    ...createTimestamps()
   });
 
   const getDefaultConversation = () => ({
@@ -426,8 +424,7 @@ const MultiCharacterChat = () => {
     parentConversationId: null, // For forked conversations
     forkPoint: null, // Message index where this was forked
     messages: [],
-    created: getTimestamp(),
-    updated: getTimestamp()
+    ...createTimestamps()
   });
 
   // ===== Memoized値 =====
@@ -1057,8 +1054,7 @@ const MultiCharacterChat = () => {
                 ...char,
                 id: newId,
                 name: `${char.name}（インポート）`,
-                created: getTimestamp(),
-                updated: getTimestamp()
+                ...createTimestamps()
               };
               setCharacters(prev => [...prev, importedChar]);
             }
@@ -1075,8 +1071,7 @@ const MultiCharacterChat = () => {
               characterId: msg.characterId ? (charIdMap[msg.characterId] ?? msg.characterId) : null,
               timestamp: getTimestamp()
             })),
-            created: getTimestamp(),
-            updated: getTimestamp()
+            ...createTimestamps()
           };
 
           setConversations(prev => [...prev, newConv]);
@@ -1121,8 +1116,7 @@ const MultiCharacterChat = () => {
           ...char,
           id: generateId(),
           name: `${char.name}（インポート）`,
-          created: getTimestamp(),
-          updated: getTimestamp()
+          ...createTimestamps()
         };
 
         setCharacters(prev => [...prev, newChar]);
@@ -1147,8 +1141,7 @@ const MultiCharacterChat = () => {
       ...JSON.parse(JSON.stringify(char)),
       id: generateId(),
       name: `${char.name}（コピー）`,
-      created: getTimestamp(),
-      updated: getTimestamp()
+      ...createTimestamps()
     };
 
     setCharacters(prev => [...prev, newChar]);
