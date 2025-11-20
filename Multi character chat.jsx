@@ -234,37 +234,41 @@ const IndexedDBWrapper = {
 };
 
 const MultiCharacterChat = () => {
-  // Initialization state
   // ===== State管理 =====
+
+  // --- 初期化State ---
   const [isInitialized, setIsInitialized] = useState(false);
 
-  // Characters state
+  // --- キャラクター関連State ---
   const [characters, setCharacters] = useState([]);
   const [characterGroups, setCharacterGroups] = useState([]);
   const [showCharacterModal, setShowCharacterModal] = useState(false);
 
-  // Conversation state
+  // --- 会話関連State ---
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
 
+  // --- メッセージ入力State ---
   const [userPrompt, setUserPrompt] = useState('');
   const [messageType, setMessageType] = useState('user'); // 'user' or 'narration'
   const [nextSpeaker, setNextSpeaker] = useState(null); // Character ID for next speaker
   const [prefillText, setPrefillText] = useState('');
+
+  // --- API関連State ---
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Model settings
+  // --- モデル設定State ---
   const [models, setModels] = useState([]);
   const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5-20250929');
   const [isLoadingModels, setIsLoadingModels] = useState(false);
 
-  // Thinking settings
+  // --- Thinking機能State ---
   const [thinkingEnabled, setThinkingEnabled] = useState(false);
   const [thinkingBudget, setThinkingBudget] = useState(2000);
   const [showThinking, setShowThinking] = useState({});
 
-  // Editing state
+  // --- 編集関連State ---
   const [editingIndex, setEditingIndex] = useState(null);
   const [editingContent, setEditingContent] = useState('');
   const [regeneratePrefill, setRegeneratePrefill] = useState('');
@@ -272,10 +276,10 @@ const MultiCharacterChat = () => {
   const [editingConversationTitle, setEditingConversationTitle] = useState(null);
   const [editingTitleText, setEditingTitleText] = useState('');
 
-  // Version management state
+  // --- バージョン管理State ---
   const [showVersions, setShowVersions] = useState({});
 
-  // Stats
+  // --- 統計State ---
   const [usageStats, setUsageStats] = useState({
     inputTokens: 0,
     outputTokens: 0,
@@ -283,25 +287,23 @@ const MultiCharacterChat = () => {
     requestCount: 0
   });
 
-  // Storage state
+  // --- ストレージState ---
   const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
   const [lastSaved, setLastSaved] = useState(null);
   const [saveStatus, setSaveStatus] = useState('');
 
-  // UI state
+  // --- UI State ---
   const [showSettings, setShowSettings] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
   const [sidebarView, setSidebarView] = useState('conversations'); // 'conversations', 'messages', 'stats'
   const [showConversationSettings, setShowConversationSettings] = useState(false);
-
-  // Message display optimization
   const [visibleMessageCount, setVisibleMessageCount] = useState(100);
+
+  // --- ダイアログState ---
+  const [confirmDialog, setConfirmDialog] = useState(null);
 
   // ===== 定数定義 =====
   const MESSAGE_LOAD_INCREMENT = 50; // 「もっと見る」で読み込む件数
-
-  // Confirmation dialog state
-  const [confirmDialog, setConfirmDialog] = useState(null);
 
   // Refs
 
