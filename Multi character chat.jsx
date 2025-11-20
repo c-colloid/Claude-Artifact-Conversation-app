@@ -824,12 +824,19 @@ const MultiCharacterChat = () => {
     if (hasAutoEmotion) {
       prompt += `5. 感情表現: 会話の流れに応じて、発言の最後に [EMOTION:感情キー] を出力してください\n`;
       prompt += `   利用可能な感情: ${Object.keys(emotions).join(', ')}\n`;
+    } else {
+      // 感情生成がオフの場合、明示的に出力しないよう指示
+      prompt += `5. **重要**: [EMOTION:xxx] タグは出力しないでください\n`;
     }
 
     if (hasAutoAffection) {
       const affectionNum = hasAutoEmotion ? 6 : 5;
       prompt += `${affectionNum}. 好感度: 会話内容に応じて、発言の最後に [AFFECTION:数値] を出力してください（0-100）\n`;
       prompt += `   好感度変動の目安: ポジティブな会話+1〜+5、ネガティブな会話-1〜-5\n`;
+    } else {
+      // 好感度生成がオフの場合、明示的に出力しないよう指示
+      const affectionNum = hasAutoEmotion ? 6 : 5;
+      prompt += `${affectionNum}. **重要**: [AFFECTION:xxx] タグは出力しないでください\n`;
     }
 
     if (conversation.narrationEnabled) {
@@ -843,19 +850,44 @@ const MultiCharacterChat = () => {
       } else {
         prompt += `${narrationNum}. 必要に応じて [NARRATION] タグで地の文(情景描写、行動描写)を追加できます\n`;
       }
+    } else {
+      // 地の文生成がオフの場合、明示的に出力しないよう指示
+      const narrationNum = hasAutoEmotion && hasAutoAffection ? 7 : hasAutoEmotion || hasAutoAffection ? 6 : 5;
+      prompt += `${narrationNum}. **重要**: [NARRATION] タグは出力しないでください\n`;
     }
 
     prompt += `\n## 出力形式の例\n\n`;
     prompt += `**単一キャラクターの発言:**\n`;
     prompt += `[CHARACTER:${participants[0]?.name || 'アリス'}]\n`;
-    prompt += `${participants[0]?.definition.firstPerson || '私'}も同じ意見だよ!\n\n`;
+    prompt += `${participants[0]?.definition.firstPerson || '私'}も同じ意見だよ!`;
+    if (hasAutoEmotion) {
+      prompt += `\n[EMOTION:joy]`;
+    }
+    if (hasAutoAffection) {
+      prompt += `\n[AFFECTION:55]`;
+    }
+    prompt += `\n\n`;
 
     if (participants.length > 1) {
       prompt += `**複数キャラクターの発言:**\n`;
       prompt += `[CHARACTER:${participants[0]?.name || 'アリス'}]\n`;
-      prompt += `そうだね、行こうか！\n\n`;
+      prompt += `そうだね、行こうか！`;
+      if (hasAutoEmotion) {
+        prompt += `\n[EMOTION:joy]`;
+      }
+      if (hasAutoAffection) {
+        prompt += `\n[AFFECTION:52]`;
+      }
+      prompt += `\n\n`;
       prompt += `[CHARACTER:${participants[1]?.name || 'ボブ'}]\n`;
-      prompt += `いいアイデアだね！\n\n`;
+      prompt += `いいアイデアだね！`;
+      if (hasAutoEmotion) {
+        prompt += `\n[EMOTION:fun]`;
+      }
+      if (hasAutoAffection) {
+        prompt += `\n[AFFECTION:53]`;
+      }
+      prompt += `\n\n`;
     }
 
     if (conversation.narrationEnabled) {
@@ -863,7 +895,14 @@ const MultiCharacterChat = () => {
       prompt += `[NARRATION]\n`;
       prompt += `二人は笑顔で頷き合った。窓の外では、春の陽気な光が差し込んでいる。\n\n`;
       prompt += `[CHARACTER:${participants[0]?.name || 'アリス'}]\n`;
-      prompt += `じゃあ、準備しようか！\n\n`;
+      prompt += `じゃあ、準備しようか！`;
+      if (hasAutoEmotion) {
+        prompt += `\n[EMOTION:joy]`;
+      }
+      if (hasAutoAffection) {
+        prompt += `\n[AFFECTION:54]`;
+      }
+      prompt += `\n\n`;
     }
 
     prompt += `\n**重要: 必ず各発言の前にタグを付け、タグと内容は改行で分けてください。**\n`;
@@ -1181,25 +1220,34 @@ const MultiCharacterChat = () => {
 
       const systemPrompt = buildSystemPrompt(conversation, forcedNextSpeaker);
 
-      const sanitizedMessages = messages.map(msg => {
-        let content = '';
+      // APIに送信するメッセージをフィルタリングして整形
+      const sanitizedMessages = messages
+        .filter(msg => {
+          // 地の文がオフの場合、地の文メッセージを除外
+          if (!conversation.narrationEnabled && msg.type === 'narration') {
+            return false;
+          }
+          return true;
+        })
+        .map(msg => {
+          let content = '';
 
-        if (msg.type === 'narration') {
-          content = `[NARRATION]\n${msg.content}`;
-        } else if (msg.type === 'user') {
-          content = `[USER]\n${msg.content}`;
-        } else {
-          const char = getCharacterById(msg.characterId);
-          const charName = char?.name || 'Unknown';
-          content = `[CHARACTER:${charName}]\n${msg.content}`;
-        }
+          if (msg.type === 'narration') {
+            content = `[NARRATION]\n${msg.content}`;
+          } else if (msg.type === 'user') {
+            content = `[USER]\n${msg.content}`;
+          } else {
+            const char = getCharacterById(msg.characterId);
+            const charName = char?.name || 'Unknown';
+            content = `[CHARACTER:${charName}]\n${msg.content}`;
+          }
 
-        return {
-          // 重要: roleはmsg.roleをそのまま使う（地の文がassistantから来た場合はassistantのまま）
-          role: msg.role,
-          content: content
-        };
-      });
+          return {
+            // 重要: roleはmsg.roleをそのまま使う（地の文がassistantから来た場合はassistantのまま）
+            role: msg.role,
+            content: content
+          };
+        });
 
       // 連続する同じroleのメッセージを結合（Claude APIの制約に対応）
       const mergedMessages = [];
