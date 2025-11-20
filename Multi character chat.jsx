@@ -824,19 +824,12 @@ const MultiCharacterChat = () => {
     if (hasAutoEmotion) {
       prompt += `5. 感情表現: 会話の流れに応じて、発言の最後に [EMOTION:感情キー] を出力してください\n`;
       prompt += `   利用可能な感情: ${Object.keys(emotions).join(', ')}\n`;
-    } else {
-      // 感情生成がオフの場合、明示的に出力しないよう指示
-      prompt += `5. **重要**: [EMOTION:xxx] タグは出力しないでください\n`;
     }
 
     if (hasAutoAffection) {
       const affectionNum = hasAutoEmotion ? 6 : 5;
       prompt += `${affectionNum}. 好感度: 会話内容に応じて、発言の最後に [AFFECTION:数値] を出力してください（0-100）\n`;
       prompt += `   好感度変動の目安: ポジティブな会話+1〜+5、ネガティブな会話-1〜-5\n`;
-    } else {
-      // 好感度生成がオフの場合、明示的に出力しないよう指示
-      const affectionNum = hasAutoEmotion ? 6 : 5;
-      prompt += `${affectionNum}. **重要**: [AFFECTION:xxx] タグは出力しないでください\n`;
     }
 
     if (conversation.narrationEnabled) {
@@ -850,10 +843,6 @@ const MultiCharacterChat = () => {
       } else {
         prompt += `${narrationNum}. 必要に応じて [NARRATION] タグで地の文(情景描写、行動描写)を追加できます\n`;
       }
-    } else {
-      // 地の文生成がオフの場合、明示的に出力しないよう指示
-      const narrationNum = hasAutoEmotion && hasAutoAffection ? 7 : hasAutoEmotion || hasAutoAffection ? 6 : 5;
-      prompt += `${narrationNum}. **重要**: [NARRATION] タグは出力しないでください\n`;
     }
 
     prompt += `\n## 出力形式の例\n\n`;
@@ -1220,6 +1209,14 @@ const MultiCharacterChat = () => {
 
       const systemPrompt = buildSystemPrompt(conversation, forcedNextSpeaker);
 
+      // Check which features are enabled
+      const participants = conversation.participantIds
+        .map(id => getCharacterById(id))
+        .map(c => getEffectiveCharacter(c))
+        .filter(c => c);
+      const hasAutoEmotion = participants.some(c => c.features.emotionEnabled && c.features.autoManageEmotion);
+      const hasAutoAffection = participants.some(c => c.features.affectionEnabled && c.features.autoManageAffection);
+
       // APIに送信するメッセージをフィルタリングして整形
       const sanitizedMessages = messages
         .filter(msg => {
@@ -1231,15 +1228,26 @@ const MultiCharacterChat = () => {
         })
         .map(msg => {
           let content = '';
+          let messageContent = msg.content;
+
+          // オフになっている機能のタグを過去ログから除去
+          if (!hasAutoEmotion) {
+            messageContent = messageContent.replace(/\[EMOTION:\w+\]\s*/g, '');
+          }
+          if (!hasAutoAffection) {
+            messageContent = messageContent.replace(/\[AFFECTION:\d+\]\s*/g, '');
+          }
+
+          messageContent = messageContent.trim();
 
           if (msg.type === 'narration') {
-            content = `[NARRATION]\n${msg.content}`;
+            content = `[NARRATION]\n${messageContent}`;
           } else if (msg.type === 'user') {
-            content = `[USER]\n${msg.content}`;
+            content = `[USER]\n${messageContent}`;
           } else {
             const char = getCharacterById(msg.characterId);
             const charName = char?.name || 'Unknown';
-            content = `[CHARACTER:${charName}]\n${msg.content}`;
+            content = `[CHARACTER:${charName}]\n${messageContent}`;
           }
 
           return {
