@@ -271,6 +271,8 @@ const MultiCharacterChat = () => {
   // --- 編集関連State ---
   const [editingIndex, setEditingIndex] = useState(null);
   const [editingContent, setEditingContent] = useState('');
+  const [editingEmotion, setEditingEmotion] = useState(null);
+  const [editingAffection, setEditingAffection] = useState(null);
   const [regeneratePrefill, setRegeneratePrefill] = useState('');
   const [showRegeneratePrefill, setShowRegeneratePrefill] = useState(null);
   const [editingConversationTitle, setEditingConversationTitle] = useState(null);
@@ -735,7 +737,7 @@ const MultiCharacterChat = () => {
   }, [conversations]);
 
   // システムプロンプトを構築（useCallbackでメモ化）
-  const buildSystemPrompt = useCallback((conversation, nextSpeakerId = null) => {
+  const buildSystemPrompt = useCallback((conversation, nextSpeakerId = null, messages = []) => {
     if (!conversation) return '';
 
     const participants = conversation.participantIds
@@ -906,6 +908,14 @@ const MultiCharacterChat = () => {
     }
 
     prompt += `\n**重要: 必ず各発言の前にタグを付け、タグと内容は改行で分けてください。**\n`;
+
+    // 直前のメッセージが地の文の場合、連続を防ぐ
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.type === 'narration') {
+        prompt += `\n**注意**: 直前のメッセージが地の文です。連続して地の文を生成せず、キャラクターの発言から始めてください。\n`;
+      }
+    }
 
     return prompt;
   }, [getCharacterById, getEffectiveCharacter]);
@@ -1218,7 +1228,7 @@ const MultiCharacterChat = () => {
         throw new Error('キャラクターが登録されていません');
       }
 
-      const systemPrompt = buildSystemPrompt(conversation, forcedNextSpeaker);
+      const systemPrompt = buildSystemPrompt(conversation, forcedNextSpeaker, messages);
 
       // Check which features are enabled
       const participants = conversation.participantIds
@@ -1463,25 +1473,30 @@ const MultiCharacterChat = () => {
    * getCurrentMessagesが変更された時のみ再生成
    */
   const handleEdit = useCallback((index) => {
+    const message = getAllMessages[index];
     setEditingIndex(index);
-    setEditingContent(getAllMessages[index].content);
+    setEditingContent(message.content);
+    setEditingEmotion(message.emotion || null);
+    setEditingAffection(message.affection !== undefined && message.affection !== null ? message.affection : null);
   }, [getAllMessages]);
 
   /**
    * メッセージ編集保存（useCallbackでメモ化）
-   * getAllMessages, editingContent, currentConversationId, updateConversationが変更された時のみ再生成
+   * getAllMessages, editingContent, editingEmotion, editingAffection, currentConversationId, updateConversationが変更された時のみ再生成
    */
   const handleSaveEdit = useCallback((index) => {
     const currentMessages = getAllMessages;
     const updated = [...currentMessages];
     updated[index].content = editingContent;
+    updated[index].emotion = editingEmotion;
+    updated[index].affection = editingAffection;
 
     updateConversation(currentConversationId, {
       messages: updated
     });
 
     setEditingIndex(null);
-  }, [getAllMessages, editingContent, currentConversationId, updateConversation]);
+  }, [getAllMessages, editingContent, editingEmotion, editingAffection, currentConversationId, updateConversation]);
 
   /**
    * メッセージ編集キャンセル（useCallbackでメモ化）
@@ -3247,6 +3262,44 @@ const MessageBubble = React.memo(({
               className="w-full p-3 border border-gray-300 rounded-lg text-sm"
               rows={10}
             />
+            {!isNarration && !isUser && character && (
+              <div className="grid grid-cols-2 gap-3">
+                {character.features.emotionEnabled && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">感情</label>
+                    <select
+                      value={editingEmotion || ''}
+                      onChange={(e) => setEditingEmotion(e.target.value || null)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    >
+                      <option value="">なし</option>
+                      {Object.entries(emotions).map(([key, value]) => (
+                        <option key={key} value={key}>
+                          {value.emoji} {value.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {character.features.affectionEnabled && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">好感度 (0-100)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={editingAffection !== null ? editingAffection : ''}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? null : Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+                        setEditingAffection(val);
+                      }}
+                      placeholder="なし"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex gap-2">
               <button
                 onClick={() => handleSaveEdit(index)}
