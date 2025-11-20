@@ -3697,7 +3697,7 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
   const handleEdit = (char) => {
     setEditingChar(JSON.parse(JSON.stringify(char)));
     setIsNew(false);
-    setIsDerived(!!char.baseCharacterId);
+    setIsDerived(char.baseCharacterId != null);
   };
 
   const toggleOverride = (field) => {
@@ -3765,7 +3765,7 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
 
   const isOverridden = (char, field) => {
     if (!char.baseCharacterId) return false;
-    return !!char.overrides[field];
+    return field in char.overrides;
   };
 
   const handleAvatarImageUpload = (event) => {
