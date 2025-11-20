@@ -822,9 +822,7 @@ const MultiCharacterChat = () => {
     }
 
     if (conversation.narrationEnabled) {
-      const hasBothAuto = hasAutoEmotion && hasAutoAffection;
-      const hasEitherAuto = hasAutoEmotion || hasAutoAffection;
-      const narrationNum = hasBothAuto ? 7 : hasEitherAuto ? 6 : 5;
+      const narrationNum = hasAutoEmotion && hasAutoAffection ? 7 : hasAutoEmotion || hasAutoAffection ? 6 : 5;
       if (conversation.autoGenerateNarration) {
         prompt += `${narrationNum}. **地の文を自動生成**: 会話の合間に [NARRATION] タグで地の文を積極的に挿入してください\n`;
         prompt += `   - 情景描写: 周囲の環境、天気、雰囲気など\n`;
@@ -1310,9 +1308,7 @@ const MultiCharacterChat = () => {
       // Auto-generate title if still default
       const conv = getCurrentConversation;
       if (conv) {
-        const isDefaultTitle = conv.title === '新しい会話';
-        const hasEnoughMessages = updatedMessages.length >= 2;
-        const newTitle = isDefaultTitle && hasEnoughMessages
+        const newTitle = conv.title === '新しい会話' && updatedMessages.length >= 2
           ? generateConversationTitle(updatedMessages)
           : conv.title;
 
