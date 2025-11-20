@@ -1746,12 +1746,12 @@ const MultiCharacterChat = () => {
                 customPrompt: definition.customPrompt ?? ''
               },
               features: {
-                emotionEnabled: features.emotionEnabled !== undefined ? features.emotionEnabled : true,
-                affectionEnabled: features.affectionEnabled !== undefined ? features.affectionEnabled : false,
-                autoManageEmotion: features.autoManageEmotion !== undefined ? features.autoManageEmotion : true,
-                autoManageAffection: features.autoManageAffection !== undefined ? features.autoManageAffection : true,
+                emotionEnabled: features.emotionEnabled ?? true,
+                affectionEnabled: features.affectionEnabled ?? false,
+                autoManageEmotion: features.autoManageEmotion ?? true,
+                autoManageAffection: features.autoManageAffection ?? true,
                 currentEmotion: features.currentEmotion ?? 'neutral',
-                affectionLevel: features.affectionLevel !== undefined ? features.affectionLevel : 50,
+                affectionLevel: features.affectionLevel ?? 50,
                 avatar: features.avatar ?? '😊',
                 avatarType: features.avatarType ?? 'emoji',
                 avatarImage: features.avatarImage ?? null
@@ -1769,7 +1769,7 @@ const MultiCharacterChat = () => {
           // Migrate conversations to add missing fields
           const migratedConversations = data.conversations.map(conv => ({
             ...conv,
-            narrationEnabled: conv.narrationEnabled !== undefined ? conv.narrationEnabled : true,
+            narrationEnabled: conv.narrationEnabled ?? true,
             autoGenerateNarration: conv.autoGenerateNarration ?? false,
             backgroundInfo: conv.backgroundInfo ?? '',
             relationships: conv.relationships ?? [],
