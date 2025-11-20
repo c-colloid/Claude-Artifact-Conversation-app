@@ -600,7 +600,7 @@ const MultiCharacterChat = () => {
           .find(c => c?.name === charName);
 
         currentType = 'character';
-        currentCharacterId = char?.id || null;
+        currentCharacterId = char?.id ?? null;
 
         // Add the rest of the line after the tag
         const restOfLine = line.replace(/^\[CHARACTER:[^\]]+\]\s*/, '');
@@ -644,7 +644,7 @@ const MultiCharacterChat = () => {
         const char = conversation.participantIds
           .map(id => getCharacterById(id))
           .find(c => c?.name === charName);
-        characterId = char?.id || null;
+        characterId = char?.id ?? null;
       }
 
       let cleanContent = responseText.replace(/\[CHARACTER:[^\]]+\]|\[NARRATION\]|\[EMOTION:\w+\]|\[AFFECTION:\d+\]/g, '').trim();
@@ -1061,10 +1061,10 @@ const MultiCharacterChat = () => {
             ...data.conversation,
             id: generateId(),
             title: `${data.conversation.title}（インポート）`,
-            participantIds: data.conversation.participantIds.map(id => charIdMap[id] || id),
+            participantIds: data.conversation.participantIds.map(id => charIdMap[id] ?? id),
             messages: data.conversation.messages.map(msg => ({
               ...msg,
-              characterId: msg.characterId ? (charIdMap[msg.characterId] || msg.characterId) : null,
+              characterId: msg.characterId ? (charIdMap[msg.characterId] ?? msg.characterId) : null,
               timestamp: new Date().toISOString()
             })),
             created: new Date().toISOString(),
@@ -1255,9 +1255,9 @@ const MultiCharacterChat = () => {
 
       if (data.usage) {
         setUsageStats(prev => ({
-          inputTokens: prev.inputTokens + (data.usage.input_tokens || 0),
-          outputTokens: prev.outputTokens + (data.usage.output_tokens || 0),
-          totalTokens: prev.totalTokens + (data.usage.input_tokens || 0) + (data.usage.output_tokens || 0),
+          inputTokens: prev.inputTokens + (data.usage.input_tokens ?? 0),
+          outputTokens: prev.outputTokens + (data.usage.output_tokens ?? 0),
+          totalTokens: prev.totalTokens + (data.usage.input_tokens ?? 0) + (data.usage.output_tokens ?? 0),
           requestCount: prev.requestCount + 1
         }));
       }
@@ -1624,7 +1624,7 @@ const MultiCharacterChat = () => {
 
         if (!formattedModels.find(m => m.id === selectedModel)) {
           const defaultModel = formattedModels.find(m => m.id.includes('sonnet-4-5'))
-            || formattedModels[0];
+            ?? formattedModels[0];
           if (defaultModel) {
             setSelectedModel(defaultModel.id);
           }
@@ -1735,26 +1735,26 @@ const MultiCharacterChat = () => {
         if (data.characters && data.characters.length > 0) {
           // Migrate characters to add missing features
           const migratedCharacters = data.characters.map(char => {
-            const features = char.features || {};
-            const definition = char.definition || {};
+            const features = char.features ?? {};
+            const definition = char.definition ?? {};
             return {
               ...char,
-              baseCharacterId: char.baseCharacterId || null,
-              overrides: char.overrides || {},
+              baseCharacterId: char.baseCharacterId ?? null,
+              overrides: char.overrides ?? {},
               definition: {
                 ...definition,
-                customPrompt: definition.customPrompt || ''
+                customPrompt: definition.customPrompt ?? ''
               },
               features: {
                 emotionEnabled: features.emotionEnabled !== undefined ? features.emotionEnabled : true,
                 affectionEnabled: features.affectionEnabled !== undefined ? features.affectionEnabled : false,
                 autoManageEmotion: features.autoManageEmotion !== undefined ? features.autoManageEmotion : true,
                 autoManageAffection: features.autoManageAffection !== undefined ? features.autoManageAffection : true,
-                currentEmotion: features.currentEmotion || 'neutral',
+                currentEmotion: features.currentEmotion ?? 'neutral',
                 affectionLevel: features.affectionLevel !== undefined ? features.affectionLevel : 50,
-                avatar: features.avatar || '😊',
-                avatarType: features.avatarType || 'emoji',
-                avatarImage: features.avatarImage || null
+                avatar: features.avatar ?? '😊',
+                avatarType: features.avatarType ?? 'emoji',
+                avatarImage: features.avatarImage ?? null
               }
             };
           });
@@ -1770,11 +1770,11 @@ const MultiCharacterChat = () => {
           const migratedConversations = data.conversations.map(conv => ({
             ...conv,
             narrationEnabled: conv.narrationEnabled !== undefined ? conv.narrationEnabled : true,
-            autoGenerateNarration: conv.autoGenerateNarration || false,
-            backgroundInfo: conv.backgroundInfo || '',
-            relationships: conv.relationships || [],
-            parentConversationId: conv.parentConversationId || null,
-            forkPoint: conv.forkPoint || null
+            autoGenerateNarration: conv.autoGenerateNarration ?? false,
+            backgroundInfo: conv.backgroundInfo ?? '',
+            relationships: conv.relationships ?? [],
+            parentConversationId: conv.parentConversationId ?? null,
+            forkPoint: conv.forkPoint ?? null
           }));
           setConversations(migratedConversations);
         }
