@@ -464,6 +464,8 @@ const MultiCharacterChat = () => {
   const getCurrentMessages = getAllMessages;
 
   // ===== イベントハンドラー・操作関数 =====
+
+  // --- キャラクター操作 ---
   const getCharacterById = useCallback((id) => {
     return characters.find(c => c.id === id);
   }, [characters]);
@@ -686,6 +688,7 @@ const MultiCharacterChat = () => {
     ));
   }, []);
 
+  // --- 会話操作 ---
   /**
    * 会話更新（useCallbackでメモ化）
    * 依存関係なし（setConversationsは安定）
@@ -1325,6 +1328,7 @@ const MultiCharacterChat = () => {
     }
   };
 
+  // --- メッセージ操作 ---
   /**
    * メッセージ送信（useCallbackでメモ化）
    * userPrompt, currentConversationId, messageType, nextSpeaker, getCurrentMessages,
@@ -1636,6 +1640,7 @@ const MultiCharacterChat = () => {
     }
   };
 
+  // --- データ操作 ---
   /**
    * データをストレージに保存
    * IndexedDBを使用した非同期保存（UIブロッキングなし）
