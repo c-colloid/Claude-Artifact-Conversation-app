@@ -1230,11 +1230,35 @@ const MultiCharacterChat = () => {
           let content = '';
           let messageContent = msg.content;
 
-          // オフになっている機能のタグを過去ログから除去
-          if (!hasAutoEmotion) {
+          // キャラクターメッセージの場合、タグを整形
+          if (msg.type === 'character' && msg.role === 'assistant') {
+            // まず既存のタグを全て除去
             messageContent = messageContent.replace(/\[EMOTION:\w+\]\s*/g, '');
-          }
-          if (!hasAutoAffection) {
+            messageContent = messageContent.replace(/\[AFFECTION:\d+\]\s*/g, '');
+            messageContent = messageContent.trim();
+
+            // 機能がオンの場合、タグを追加または補完
+            const tagsToAdd = [];
+
+            if (hasAutoEmotion) {
+              // 感情データがあればそれを使用、なければデフォルト値を補完
+              const emotionKey = msg.emotion || 'neutral';
+              tagsToAdd.push(`[EMOTION:${emotionKey}]`);
+            }
+
+            if (hasAutoAffection) {
+              // 好感度データがあればそれを使用、なければデフォルト値を補完
+              const affectionValue = msg.affection !== null && msg.affection !== undefined ? msg.affection : 50;
+              tagsToAdd.push(`[AFFECTION:${affectionValue}]`);
+            }
+
+            // タグを追加
+            if (tagsToAdd.length > 0) {
+              messageContent = messageContent + '\n' + tagsToAdd.join('\n');
+            }
+          } else {
+            // ユーザーメッセージや地の文の場合は、タグを除去するのみ
+            messageContent = messageContent.replace(/\[EMOTION:\w+\]\s*/g, '');
             messageContent = messageContent.replace(/\[AFFECTION:\d+\]\s*/g, '');
           }
 
