@@ -1001,13 +1001,14 @@ const MultiCharacterChat = () => {
         stats.narrationCount++;
       } else if (msg.type === 'character' && msg.characterId) {
         stats.characterMessages[msg.characterId] = (stats.characterMessages[msg.characterId] || 0) + 1;
+      }
+    });
 
-        if (msg.affection !== undefined) {
-          if (!stats.characterAffection[msg.characterId]) {
-            stats.characterAffection[msg.characterId] = [];
-          }
-          stats.characterAffection[msg.characterId].push(msg.affection);
-        }
+    // Get current affection level for each character in the conversation
+    Object.keys(stats.characterMessages).forEach(charId => {
+      const char = getCharacterById(charId);
+      if (char && char.features.affectionEnabled) {
+        stats.characterAffection[charId] = char.features.affectionLevel;
       }
     });
 
@@ -2285,11 +2286,10 @@ const MultiCharacterChat = () => {
 
                   {Object.keys(stats.characterAffection).length > 0 && (
                     <div className="bg-red-50 border border-red-200 rounded-lg p-3">
-                      <h4 className="font-semibold text-sm text-red-800 mb-2">平均好感度</h4>
+                      <h4 className="font-semibold text-sm text-red-800 mb-2">現在の好感度</h4>
                       <div className="text-xs space-y-1">
-                        {Object.entries(stats.characterAffection).map(([charId, affections]) => {
+                        {Object.entries(stats.characterAffection).map(([charId, affectionLevel]) => {
                           const char = getCharacterById(charId);
-                          const avg = Math.round(affections.reduce((a, b) => a + b, 0) / affections.length);
                           return (
                             <div key={charId} className="flex justify-between items-center">
                               <div className="flex items-center gap-1">
@@ -2298,7 +2298,7 @@ const MultiCharacterChat = () => {
                               </div>
                               <span className="font-semibold text-red-600 flex items-center gap-1">
                                 <Heart size={10} />
-                                {avg}
+                                {affectionLevel}
                               </span>
                             </div>
                           );
