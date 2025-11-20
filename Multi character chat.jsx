@@ -1808,9 +1808,9 @@ const MultiCharacterChat = () => {
     }
   };
 
-  // Initial load effect
-
   // ===== 副作用（useEffect）=====
+
+  // --- 初期化 ---
   useEffect(() => {
     const initializeData = async () => {
       const hasData = await loadFromStorage();
@@ -1831,6 +1831,7 @@ const MultiCharacterChat = () => {
     initializeData();
   }, []);
 
+  // --- 自動保存 ---
   /**
    * 自動保存Effect
    * データが変更されるたびにデバウンスされた保存を実行
@@ -1841,6 +1842,7 @@ const MultiCharacterChat = () => {
     debouncedSave();
   }, [characters, conversations, currentConversationId, selectedModel, thinkingEnabled, thinkingBudget, usageStats, autoSaveEnabled, isInitialized, debouncedSave]);
 
+  // --- UI同期 ---
   /**
    * 会話切り替え時の処理
    * - スクロールを最下部に移動
