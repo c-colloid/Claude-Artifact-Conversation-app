@@ -3548,7 +3548,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpda
                     onChange={(e) => updateRelationship(idx, 'char1Id', e.target.value)}
                     className="flex-1 px-2 py-1 text-sm border rounded"
                   >
-                    <option value="__user__">わたし（ユーザー）</option>
+                    <option value="__user__">あなた</option>
                     {localParticipants.map(charId => {
                       const char = characters.find(c => c.id === charId);
                       return char ? (
@@ -3562,7 +3562,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpda
                     onChange={(e) => updateRelationship(idx, 'char2Id', e.target.value)}
                     className="flex-1 px-2 py-1 text-sm border rounded"
                   >
-                    <option value="__user__">わたし（ユーザー）</option>
+                    <option value="__user__">あなた</option>
                     {localParticipants.map(charId => {
                       const char = characters.find(c => c.id === charId);
                       return char ? (
