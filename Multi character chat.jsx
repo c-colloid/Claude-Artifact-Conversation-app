@@ -422,8 +422,9 @@ const MultiCharacterChat = () => {
     updated: new Date().toISOString()
   });
 
-  // ===== Memoized値（データ取得・計算）=====
+  // ===== Memoized値 =====
 
+  // --- データ取得 ---
   /**
    * 現在選択されている会話を取得（useMemoでメモ化）
    * conversationsまたはcurrentConversationIdが変更された時のみ再計算
@@ -442,6 +443,7 @@ const MultiCharacterChat = () => {
     return getCurrentConversation.messages || [];
   }, [getCurrentConversation]);
 
+  // --- 計算値・加工データ ---
   /**
    * 表示用のメッセージリスト（パフォーマンス最適化）
    * 最新からvisibleMessageCount件のみを表示
@@ -461,9 +463,7 @@ const MultiCharacterChat = () => {
    */
   const getCurrentMessages = getAllMessages;
 
-  // キャラクター検索をメモ化（useCallback）
-
-  // ===== イベントハンドラー・操作関数（useCallback）=====
+  // ===== イベントハンドラー・操作関数 =====
   const getCharacterById = useCallback((id) => {
     return characters.find(c => c.id === id);
   }, [characters]);
