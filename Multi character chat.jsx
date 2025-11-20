@@ -417,15 +417,12 @@ const MultiCharacterChat = () => {
     updated: new Date().toISOString()
   });
 
-  // ===== パフォーマンス最適化: useMemoで計算コストの高い値をメモ化 =====
+  // ===== Memoized値（データ取得・計算）=====
 
-  // 現在の会話をメモ化
   /**
    * 現在選択されている会話を取得（useMemoでメモ化）
    * conversationsまたはcurrentConversationIdが変更された時のみ再計算
    */
-
-  // ===== Memoized値（データ取得・計算）=====
   const getCurrentConversation = useMemo(() => {
     return conversations.find(c => c.id === currentConversationId);
   }, [conversations, currentConversationId]);
