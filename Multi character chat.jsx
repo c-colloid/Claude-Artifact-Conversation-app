@@ -342,10 +342,14 @@ const MultiCharacterChat = () => {
     neutral: { label: '中', emoji: '😐', color: 'text-gray-500' }
   };
 
+  // ===== ヘルパー関数 =====
+
+  // --- ID生成 ---
   const generateId = () => {
     return Date.now().toString(36) + Math.random().toString(36).substr(2);
   };
 
+  // --- モデル表示ヘルパー ---
   const getIconForModel = (displayName, modelId) => {
     const name = (displayName || modelId).toLowerCase();
     if (name.includes('opus')) return '👑';
@@ -373,6 +377,7 @@ const MultiCharacterChat = () => {
     return modelId;
   };
 
+  // --- デフォルト値生成 ---
   const getDefaultCharacter = () => ({
     id: generateId(),
     name: '新しいキャラクター',
