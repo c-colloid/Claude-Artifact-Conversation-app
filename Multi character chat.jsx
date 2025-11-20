@@ -849,6 +849,8 @@ const MultiCharacterChat = () => {
       } else {
         prompt += `${narrationNum}. 必要に応じて [NARRATION] タグで地の文(情景描写、行動描写)を追加できます\n`;
       }
+      prompt += `\n**注意**: 過去の会話履歴に地の文が含まれていない場合がありますが、これは機能が無効だった期間のメッセージです。`;
+      prompt += `これからは${conversation.autoGenerateNarration ? '積極的に' : '必要に応じて'}地の文を生成してください。\n`;
     }
 
     prompt += `\n## 出力形式の例\n\n`;
