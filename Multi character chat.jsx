@@ -832,6 +832,12 @@ const MultiCharacterChat = () => {
       prompt += `   好感度変動の目安: ポジティブな会話+1〜+5、ネガティブな会話-1〜-5\n`;
     }
 
+    // 感情・好感度機能がオンで、過去ログにタグが無い可能性がある場合の補足説明
+    if (hasAutoEmotion || hasAutoAffection) {
+      prompt += `\n**注意**: 過去の会話履歴に感情・好感度タグが含まれていない場合がありますが、これは機能が無効だった期間のメッセージです。`;
+      prompt += `これからの発言では、上記の指示に従って必ずタグを出力してください。\n`;
+    }
+
     if (conversation.narrationEnabled) {
       const narrationNum = hasAutoEmotion && hasAutoAffection ? 7 : hasAutoEmotion || hasAutoAffection ? 6 : 5;
       if (conversation.autoGenerateNarration) {
@@ -1237,19 +1243,17 @@ const MultiCharacterChat = () => {
             messageContent = messageContent.replace(/\[AFFECTION:\d+\]\s*/g, '');
             messageContent = messageContent.trim();
 
-            // 機能がオンの場合、タグを追加または補完
+            // 機能がオンで、かつデータが存在する場合のみタグを追加
             const tagsToAdd = [];
 
-            if (hasAutoEmotion) {
-              // 感情データがあればそれを使用、なければデフォルト値を補完
-              const emotionKey = msg.emotion || 'neutral';
-              tagsToAdd.push(`[EMOTION:${emotionKey}]`);
+            if (hasAutoEmotion && msg.emotion) {
+              // 感情データがある場合のみ追加
+              tagsToAdd.push(`[EMOTION:${msg.emotion}]`);
             }
 
-            if (hasAutoAffection) {
-              // 好感度データがあればそれを使用、なければデフォルト値を補完
-              const affectionValue = msg.affection !== null && msg.affection !== undefined ? msg.affection : 50;
-              tagsToAdd.push(`[AFFECTION:${affectionValue}]`);
+            if (hasAutoAffection && msg.affection !== null && msg.affection !== undefined) {
+              // 好感度データがある場合のみ追加
+              tagsToAdd.push(`[AFFECTION:${msg.affection}]`);
             }
 
             // タグを追加
