@@ -353,8 +353,14 @@ const MultiCharacterChat = () => {
   const getTimestamp = () => new Date().toISOString();
   const getTodayDate = () => new Date().toISOString().slice(0, 10);
   const createTimestamps = () => ({
-    ...createTimestamps()
+    created: getTimestamp(),
+    updated: getTimestamp()
   });
+
+  // --- ファイル名生成 ---
+  const generateFileName = (prefix, name) => {
+    return `${prefix}_${name}_${getTodayDate()}.json`;
+  };
 
   // --- モデル表示ヘルパー ---
   const getIconForModel = (displayName, modelId) => {
@@ -1024,7 +1030,7 @@ const MultiCharacterChat = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `multi_conversation_${conv.title}_${getTodayDate()}.json`;
+    a.download = generateFileName('multi_conversation', conv.title);
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -1097,7 +1103,7 @@ const MultiCharacterChat = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `character_${char.name}_${getTodayDate()}.json`;
+    a.download = generateFileName('character', char.name);
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
