@@ -991,16 +991,38 @@ const MultiCharacterChat = () => {
       userMessages: 0,
       characterMessages: {},
       narrationCount: 0,
-      characterAffection: {}
+      characterAffection: {},
+      characterAffectionHistory: {}
     };
 
-    currentConv.messages.forEach(msg => {
+    // Track affection level changes throughout the conversation
+    const affectionTracker = {};
+
+    currentConv.messages.forEach((msg, index) => {
       if (msg.type === 'user') {
         stats.userMessages++;
       } else if (msg.type === 'narration') {
         stats.narrationCount++;
       } else if (msg.type === 'character' && msg.characterId) {
         stats.characterMessages[msg.characterId] = (stats.characterMessages[msg.characterId] || 0) + 1;
+
+        // Initialize affection tracker if needed
+        if (!affectionTracker[msg.characterId]) {
+          const char = getCharacterById(msg.characterId);
+          affectionTracker[msg.characterId] = char?.features.affectionLevel || 50;
+          stats.characterAffectionHistory[msg.characterId] = [];
+        }
+
+        // Update affection if message has affection tag
+        if (msg.affection !== undefined) {
+          affectionTracker[msg.characterId] = msg.affection;
+        }
+
+        // Record affection at this point (sample every message for now)
+        stats.characterAffectionHistory[msg.characterId].push({
+          messageIndex: index,
+          affection: affectionTracker[msg.characterId]
+        });
       }
     });
 
@@ -2300,6 +2322,82 @@ const MultiCharacterChat = () => {
                                 <Heart size={10} />
                                 {affectionLevel}
                               </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {Object.keys(stats.characterAffectionHistory || {}).length > 0 && (
+                    <div className="bg-pink-50 border border-pink-200 rounded-lg p-3">
+                      <h4 className="font-semibold text-sm text-pink-800 mb-2">好感度推移</h4>
+                      <div className="space-y-3">
+                        {Object.entries(stats.characterAffectionHistory).map(([charId, history]) => {
+                          const char = getCharacterById(charId);
+                          if (!history || history.length === 0) return null;
+
+                          // Sample data points to max 20 for performance
+                          const maxPoints = 20;
+                          const sampledHistory = history.length <= maxPoints
+                            ? history
+                            : history.filter((_, i) => i % Math.ceil(history.length / maxPoints) === 0);
+
+                          // Graph dimensions
+                          const width = 180;
+                          const height = 30;
+                          const padding = 2;
+
+                          // Calculate points for SVG path
+                          const points = sampledHistory.map((point, index) => {
+                            const x = padding + (index / (sampledHistory.length - 1)) * (width - padding * 2);
+                            const y = height - padding - ((point.affection / 100) * (height - padding * 2));
+                            return `${x},${y}`;
+                          });
+
+                          const pathData = `M ${points.join(' L ')}`;
+
+                          return (
+                            <div key={charId} className="space-y-1">
+                              <div className="flex items-center gap-1 text-xs">
+                                {char && <AvatarDisplay character={char} size="sm" />}
+                                <span className="font-medium">{char?.name || '不明'}</span>
+                              </div>
+                              <svg width={width} height={height} className="bg-white rounded border border-pink-200">
+                                {/* Grid lines */}
+                                <line x1={padding} y1={height/2} x2={width-padding} y2={height/2} stroke="#fce7f3" strokeWidth="1" strokeDasharray="2,2" />
+
+                                {/* Affection line */}
+                                <path
+                                  d={pathData}
+                                  fill="none"
+                                  stroke="#ec4899"
+                                  strokeWidth="2"
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                />
+
+                                {/* Data points */}
+                                {sampledHistory.map((point, index) => {
+                                  const x = padding + (index / (sampledHistory.length - 1)) * (width - padding * 2);
+                                  const y = height - padding - ((point.affection / 100) * (height - padding * 2));
+                                  return (
+                                    <circle
+                                      key={index}
+                                      cx={x}
+                                      cy={y}
+                                      r="2"
+                                      fill="#ec4899"
+                                    />
+                                  );
+                                })}
+                              </svg>
+                              <div className="flex justify-between text-xs text-gray-500">
+                                <span>開始</span>
+                                <span className="text-pink-600 font-medium">
+                                  {sampledHistory[0]?.affection} → {sampledHistory[sampledHistory.length - 1]?.affection}
+                                </span>
+                              </div>
                             </div>
                           );
                         })}
