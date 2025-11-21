@@ -2236,7 +2236,7 @@ const MultiCharacterChat = () => {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <div className={`w-64 bg-white border-r border-gray-200 overflow-y-auto p-3 absolute lg:relative h-full lg:h-auto z-10 lg:z-auto shadow-lg lg:shadow-none ${showSidebar ? 'block' : 'hidden lg:block'}`}>
+        <div className={`w-64 bg-white border-r border-gray-200 overflow-y-auto p-3 fixed lg:relative inset-y-0 left-0 lg:inset-auto z-10 lg:z-auto shadow-lg lg:shadow-none ${showSidebar ? 'block' : 'hidden lg:block'}`}>
           <div className="flex gap-1 mb-3">
             <button
               onClick={() => setSidebarView('conversations')}
@@ -3652,11 +3652,6 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpda
     <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 overflow-y-auto"
       style={{ zIndex: 50 }}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) {
-          onClose();
-        }
-      }}
     >
       <div
         className="bg-white rounded-lg shadow-xl w-full max-w-3xl my-8 flex flex-col"
@@ -4102,56 +4097,47 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
-          <h2 className="text-xl font-bold text-indigo-600">キャラクター管理</h2>
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onClose();
-            }}
-            className="p-2 hover:bg-gray-100 rounded-lg"
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="flex border-b flex-shrink-0">
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              setEditingChar(null);
-            }}
-            className={`flex-1 px-4 py-3 font-medium ${!editingChar ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50' : 'text-gray-600 hover:bg-gray-50'}`}
-          >
-            キャラクター一覧
-          </button>
-          <button
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              if (editingChar) return;
-              handleCreate();
-            }}
-            className={`flex-1 px-4 py-3 font-medium ${editingChar ? 'text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50' : 'text-gray-600 hover:bg-gray-50'}`}
-          >
-            {editingChar ? '編集中' : '新規作成'}
-          </button>
+          <div className="flex items-center gap-3">
+            <h2 className="text-xl font-bold text-indigo-600">キャラクター管理</h2>
+            {editingChar && (
+              <div className="flex items-center gap-2">
+                <span className="text-gray-400">›</span>
+                <span className="text-lg font-semibold text-gray-700">
+                  {isNew ? (isDerived ? '派生キャラクター作成' : '新規キャラクター作成') : 'キャラクター編集'}
+                </span>
+              </div>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            {editingChar && (
+              <button
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setEditingChar(null);
+                  setIsNew(false);
+                }}
+                className="px-3 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg flex items-center gap-1"
+              >
+                ← 一覧に戻る
+              </button>
+            )}
+            <button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onClose();
+              }}
+              className="p-2 hover:bg-gray-100 rounded-lg"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
 
         <div className="overflow-y-auto p-4 flex-1" style={{ minHeight: 0 }}>
           {editingChar ? (
             <div className="space-y-3">
-              <h3 className="font-bold text-lg flex items-center gap-2">
-                {isNew ? (isDerived ? '派生キャラクター作成' : '新規キャラクター') : 'キャラクター編集'}
-                {isDerived && (
-                  <span className="text-sm bg-purple-100 text-purple-700 px-2 py-1 rounded flex items-center gap-1">
-                    <Layers size={14} />
-                    派生
-                  </span>
-                )}
-              </h3>
-
               {isDerived && editingChar.baseCharacterId && (
                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-3">
                   <div className="flex items-center gap-2 text-sm text-purple-800">
