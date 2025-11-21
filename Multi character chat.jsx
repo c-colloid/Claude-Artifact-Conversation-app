@@ -3517,10 +3517,10 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpda
   };
 
   const addRelationship = () => {
-    if (localParticipants.length < 2) return;
+    if (localParticipants.length < 1) return;
     setLocalRelationships(prev => [...prev, {
       char1Id: localParticipants[0],
-      char2Id: localParticipants[1],
+      char2Id: localParticipants.length >= 2 ? localParticipants[1] : '__user__',
       type: '友人',
       description: ''
     }]);
@@ -3669,15 +3669,15 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpda
           </label>
           <button
             onClick={addRelationship}
-            disabled={localParticipants.length < 2}
+            disabled={localParticipants.length < 1}
             className="text-xs px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition disabled:bg-gray-100 disabled:text-gray-400 flex items-center gap-1"
           >
             <Plus size={14} />
             追加
           </button>
         </div>
-        {localParticipants.length < 2 ? (
-          <p className="text-xs text-gray-500">2人以上のキャラクターを追加すると関係性を設定できます</p>
+        {localParticipants.length < 1 ? (
+          <p className="text-xs text-gray-500">1人以上のキャラクターを追加すると関係性を設定できます</p>
         ) : localRelationships.length === 0 ? (
           <p className="text-xs text-gray-500">関係性を追加して、キャラクター間の繋がりを定義できます</p>
         ) : (
@@ -3690,7 +3690,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpda
                     onChange={(e) => updateRelationship(idx, 'char1Id', e.target.value)}
                     className="flex-1 px-2 py-1 text-sm border rounded"
                   >
-                    <option value="__user__">わたし（ユーザー）</option>
+                    <option value="__user__">あなた</option>
                     {localParticipants.map(charId => {
                       const char = characters.find(c => c.id === charId);
                       return char ? (
@@ -3704,7 +3704,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, onUpda
                     onChange={(e) => updateRelationship(idx, 'char2Id', e.target.value)}
                     className="flex-1 px-2 py-1 text-sm border rounded"
                   >
-                    <option value="__user__">わたし（ユーザー）</option>
+                    <option value="__user__">あなた</option>
                     {localParticipants.map(charId => {
                       const char = characters.find(c => c.id === charId);
                       return char ? (
