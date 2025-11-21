@@ -1008,9 +1008,15 @@ const MultiCharacterChat = () => {
 
         // Initialize affection tracker if needed
         if (!affectionTracker[msg.characterId]) {
-          const char = getCharacterById(msg.characterId);
-          affectionTracker[msg.characterId] = char?.features.affectionLevel || 50;
+          // Start with default affection level (50) as the conversation baseline
+          affectionTracker[msg.characterId] = 50;
           stats.characterAffectionHistory[msg.characterId] = [];
+
+          // Add initial point at the start
+          stats.characterAffectionHistory[msg.characterId].push({
+            messageIndex: index,
+            affection: 50
+          });
         }
 
         // Update affection if message has affection tag
@@ -1018,7 +1024,7 @@ const MultiCharacterChat = () => {
           affectionTracker[msg.characterId] = msg.affection;
         }
 
-        // Record affection at this point (sample every message for now)
+        // Record affection at this point
         stats.characterAffectionHistory[msg.characterId].push({
           messageIndex: index,
           affection: affectionTracker[msg.characterId]
@@ -2341,7 +2347,9 @@ const MultiCharacterChat = () => {
                           const maxPoints = 20;
                           const sampledHistory = history.length <= maxPoints
                             ? history
-                            : history.filter((_, i) => i % Math.ceil(history.length / maxPoints) === 0);
+                            : history.filter((_, i) => i % Math.ceil(history.length / maxPoints) === 0 || i === history.length - 1);
+
+                          if (sampledHistory.length === 0) return null;
 
                           // Graph dimensions
                           const width = 180;
@@ -2350,12 +2358,16 @@ const MultiCharacterChat = () => {
 
                           // Calculate points for SVG path
                           const points = sampledHistory.map((point, index) => {
-                            const x = padding + (index / (sampledHistory.length - 1)) * (width - padding * 2);
+                            const x = sampledHistory.length === 1
+                              ? width / 2
+                              : padding + (index / (sampledHistory.length - 1)) * (width - padding * 2);
                             const y = height - padding - ((point.affection / 100) * (height - padding * 2));
                             return `${x},${y}`;
                           });
 
-                          const pathData = `M ${points.join(' L ')}`;
+                          const pathData = sampledHistory.length === 1
+                            ? `M ${points[0]}`
+                            : `M ${points.join(' L ')}`;
 
                           return (
                             <div key={charId} className="space-y-1">
@@ -2368,18 +2380,22 @@ const MultiCharacterChat = () => {
                                 <line x1={padding} y1={height/2} x2={width-padding} y2={height/2} stroke="#fce7f3" strokeWidth="1" strokeDasharray="2,2" />
 
                                 {/* Affection line */}
-                                <path
-                                  d={pathData}
-                                  fill="none"
-                                  stroke="#ec4899"
-                                  strokeWidth="2"
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                />
+                                {sampledHistory.length > 1 && (
+                                  <path
+                                    d={pathData}
+                                    fill="none"
+                                    stroke="#ec4899"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                )}
 
                                 {/* Data points */}
                                 {sampledHistory.map((point, index) => {
-                                  const x = padding + (index / (sampledHistory.length - 1)) * (width - padding * 2);
+                                  const x = sampledHistory.length === 1
+                                    ? width / 2
+                                    : padding + (index / (sampledHistory.length - 1)) * (width - padding * 2);
                                   const y = height - padding - ((point.affection / 100) * (height - padding * 2));
                                   return (
                                     <circle
