@@ -271,6 +271,8 @@ const MultiCharacterChat = () => {
   // --- 編集関連State ---
   const [editingIndex, setEditingIndex] = useState(null);
   const [editingContent, setEditingContent] = useState('');
+  const [editingEmotion, setEditingEmotion] = useState(null);
+  const [editingAffection, setEditingAffection] = useState(null);
   const [regeneratePrefill, setRegeneratePrefill] = useState('');
   const [showRegeneratePrefill, setShowRegeneratePrefill] = useState(null);
   const [editingConversationTitle, setEditingConversationTitle] = useState(null);
@@ -735,7 +737,7 @@ const MultiCharacterChat = () => {
   }, [conversations]);
 
   // システムプロンプトを構築（useCallbackでメモ化）
-  const buildSystemPrompt = useCallback((conversation, nextSpeakerId = null) => {
+  const buildSystemPrompt = useCallback((conversation, nextSpeakerId = null, messages = []) => {
     if (!conversation) return '';
 
     const participants = conversation.participantIds
@@ -832,6 +834,12 @@ const MultiCharacterChat = () => {
       prompt += `   好感度変動の目安: ポジティブな会話+1〜+5、ネガティブな会話-1〜-5\n`;
     }
 
+    // 感情・好感度機能がオンで、過去ログにタグが無い可能性がある場合の補足説明
+    if (hasAutoEmotion || hasAutoAffection) {
+      prompt += `\n**注意**: 過去の会話履歴に感情・好感度タグが含まれていない場合がありますが、これは機能が無効だった期間のメッセージです。`;
+      prompt += `これからの発言では、上記の指示に従って必ずタグを出力してください。\n`;
+    }
+
     if (conversation.narrationEnabled) {
       const narrationNum = hasAutoEmotion && hasAutoAffection ? 7 : hasAutoEmotion || hasAutoAffection ? 6 : 5;
       if (conversation.autoGenerateNarration) {
@@ -840,22 +848,48 @@ const MultiCharacterChat = () => {
         prompt += `   - 行動描写: キャラクターの動作、表情、仕草など\n`;
         prompt += `   - 心理描写: キャラクターの内面、思考など\n`;
         prompt += `   - 複数のキャラクター発言の合間に自然に挿入してください\n`;
+        // 自動生成オンの場合のみ、過去ログに地の文が無い理由を説明
+        prompt += `\n**注意**: 過去の会話履歴に地の文が含まれていない場合がありますが、これは機能が無効だった期間のメッセージです。`;
+        prompt += `これからは積極的に地の文を生成してください。\n`;
       } else {
-        prompt += `${narrationNum}. 必要に応じて [NARRATION] タグで地の文(情景描写、行動描写)を追加できます\n`;
+        // 自動生成オフの場合は、ユーザーが入力することを観察者的に説明
+        // AIに生成させない
+        prompt += `${narrationNum}. ユーザーが [NARRATION] タグで地の文(情景描写、行動描写)を追加する場合があります\n`;
       }
     }
 
     prompt += `\n## 出力形式の例\n\n`;
     prompt += `**単一キャラクターの発言:**\n`;
     prompt += `[CHARACTER:${participants[0]?.name || 'アリス'}]\n`;
-    prompt += `${participants[0]?.definition.firstPerson || '私'}も同じ意見だよ!\n\n`;
+    prompt += `${participants[0]?.definition.firstPerson || '私'}も同じ意見だよ!`;
+    if (hasAutoEmotion) {
+      prompt += `\n[EMOTION:joy]`;
+    }
+    if (hasAutoAffection) {
+      prompt += `\n[AFFECTION:55]`;
+    }
+    prompt += `\n\n`;
 
     if (participants.length > 1) {
       prompt += `**複数キャラクターの発言:**\n`;
       prompt += `[CHARACTER:${participants[0]?.name || 'アリス'}]\n`;
-      prompt += `そうだね、行こうか！\n\n`;
+      prompt += `そうだね、行こうか！`;
+      if (hasAutoEmotion) {
+        prompt += `\n[EMOTION:joy]`;
+      }
+      if (hasAutoAffection) {
+        prompt += `\n[AFFECTION:52]`;
+      }
+      prompt += `\n\n`;
       prompt += `[CHARACTER:${participants[1]?.name || 'ボブ'}]\n`;
-      prompt += `いいアイデアだね！\n\n`;
+      prompt += `いいアイデアだね！`;
+      if (hasAutoEmotion) {
+        prompt += `\n[EMOTION:fun]`;
+      }
+      if (hasAutoAffection) {
+        prompt += `\n[AFFECTION:53]`;
+      }
+      prompt += `\n\n`;
     }
 
     if (conversation.narrationEnabled) {
@@ -863,10 +897,25 @@ const MultiCharacterChat = () => {
       prompt += `[NARRATION]\n`;
       prompt += `二人は笑顔で頷き合った。窓の外では、春の陽気な光が差し込んでいる。\n\n`;
       prompt += `[CHARACTER:${participants[0]?.name || 'アリス'}]\n`;
-      prompt += `じゃあ、準備しようか！\n\n`;
+      prompt += `じゃあ、準備しようか！`;
+      if (hasAutoEmotion) {
+        prompt += `\n[EMOTION:joy]`;
+      }
+      if (hasAutoAffection) {
+        prompt += `\n[AFFECTION:54]`;
+      }
+      prompt += `\n\n`;
     }
 
     prompt += `\n**重要: 必ず各発言の前にタグを付け、タグと内容は改行で分けてください。**\n`;
+
+    // 直前のメッセージが地の文の場合、連続を防ぐ
+    if (messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage.type === 'narration') {
+        prompt += `\n**注意**: 直前のメッセージが地の文です。連続して地の文を生成せず、キャラクターの発言から始めてください。\n`;
+      }
+    }
 
     return prompt;
   }, [getCharacterById, getEffectiveCharacter]);
@@ -1179,27 +1228,77 @@ const MultiCharacterChat = () => {
         throw new Error('キャラクターが登録されていません');
       }
 
-      const systemPrompt = buildSystemPrompt(conversation, forcedNextSpeaker);
+      const systemPrompt = buildSystemPrompt(conversation, forcedNextSpeaker, messages);
 
-      const sanitizedMessages = messages.map(msg => {
-        let content = '';
+      // Check which features are enabled
+      const participants = conversation.participantIds
+        .map(id => getCharacterById(id))
+        .map(c => getEffectiveCharacter(c))
+        .filter(c => c);
+      const hasAutoEmotion = participants.some(c => c.features.emotionEnabled && c.features.autoManageEmotion);
+      const hasAutoAffection = participants.some(c => c.features.affectionEnabled && c.features.autoManageAffection);
 
-        if (msg.type === 'narration') {
-          content = `[NARRATION]\n${msg.content}`;
-        } else if (msg.type === 'user') {
-          content = `[USER]\n${msg.content}`;
-        } else {
-          const char = getCharacterById(msg.characterId);
-          const charName = char?.name || 'Unknown';
-          content = `[CHARACTER:${charName}]\n${msg.content}`;
-        }
+      // APIに送信するメッセージをフィルタリングして整形
+      const sanitizedMessages = messages
+        .filter(msg => {
+          // 地の文がオフの場合、地の文メッセージを除外
+          if (!conversation.narrationEnabled && msg.type === 'narration') {
+            return false;
+          }
+          return true;
+        })
+        .map(msg => {
+          let content = '';
+          let messageContent = msg.content;
 
-        return {
-          // 重要: roleはmsg.roleをそのまま使う（地の文がassistantから来た場合はassistantのまま）
-          role: msg.role,
-          content: content
-        };
-      });
+          // キャラクターメッセージの場合、タグを整形
+          if (msg.type === 'character' && msg.role === 'assistant') {
+            // まず既存のタグを全て除去
+            messageContent = messageContent.replace(/\[EMOTION:\w+\]\s*/g, '');
+            messageContent = messageContent.replace(/\[AFFECTION:\d+\]\s*/g, '');
+            messageContent = messageContent.trim();
+
+            // 機能がオンで、かつデータが存在する場合のみタグを追加
+            const tagsToAdd = [];
+
+            if (hasAutoEmotion && msg.emotion) {
+              // 感情データがある場合のみ追加
+              tagsToAdd.push(`[EMOTION:${msg.emotion}]`);
+            }
+
+            if (hasAutoAffection && msg.affection !== null && msg.affection !== undefined) {
+              // 好感度データがある場合のみ追加
+              tagsToAdd.push(`[AFFECTION:${msg.affection}]`);
+            }
+
+            // タグを追加
+            if (tagsToAdd.length > 0) {
+              messageContent = messageContent + '\n' + tagsToAdd.join('\n');
+            }
+          } else {
+            // ユーザーメッセージや地の文の場合は、タグを除去するのみ
+            messageContent = messageContent.replace(/\[EMOTION:\w+\]\s*/g, '');
+            messageContent = messageContent.replace(/\[AFFECTION:\d+\]\s*/g, '');
+          }
+
+          messageContent = messageContent.trim();
+
+          if (msg.type === 'narration') {
+            content = `[NARRATION]\n${messageContent}`;
+          } else if (msg.type === 'user') {
+            content = `[USER]\n${messageContent}`;
+          } else {
+            const char = getCharacterById(msg.characterId);
+            const charName = char?.name || 'Unknown';
+            content = `[CHARACTER:${charName}]\n${messageContent}`;
+          }
+
+          return {
+            // 重要: roleはmsg.roleをそのまま使う（地の文がassistantから来た場合はassistantのまま）
+            role: msg.role,
+            content: content
+          };
+        });
 
       // 連続する同じroleのメッセージを結合（Claude APIの制約に対応）
       const mergedMessages = [];
@@ -1374,25 +1473,30 @@ const MultiCharacterChat = () => {
    * getCurrentMessagesが変更された時のみ再生成
    */
   const handleEdit = useCallback((index) => {
+    const message = getAllMessages[index];
     setEditingIndex(index);
-    setEditingContent(getAllMessages[index].content);
+    setEditingContent(message.content);
+    setEditingEmotion(message.emotion || null);
+    setEditingAffection(message.affection !== undefined && message.affection !== null ? message.affection : null);
   }, [getAllMessages]);
 
   /**
    * メッセージ編集保存（useCallbackでメモ化）
-   * getAllMessages, editingContent, currentConversationId, updateConversationが変更された時のみ再生成
+   * getAllMessages, editingContent, editingEmotion, editingAffection, currentConversationId, updateConversationが変更された時のみ再生成
    */
   const handleSaveEdit = useCallback((index) => {
     const currentMessages = getAllMessages;
     const updated = [...currentMessages];
     updated[index].content = editingContent;
+    updated[index].emotion = editingEmotion;
+    updated[index].affection = editingAffection;
 
     updateConversation(currentConversationId, {
       messages: updated
     });
 
     setEditingIndex(null);
-  }, [getAllMessages, editingContent, currentConversationId, updateConversation]);
+  }, [getAllMessages, editingContent, editingEmotion, editingAffection, currentConversationId, updateConversation]);
 
   /**
    * メッセージ編集キャンセル（useCallbackでメモ化）
@@ -3158,6 +3262,44 @@ const MessageBubble = React.memo(({
               className="w-full p-3 border border-gray-300 rounded-lg text-sm"
               rows={10}
             />
+            {!isNarration && !isUser && character && (
+              <div className="grid grid-cols-2 gap-3">
+                {character.features.emotionEnabled && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">感情</label>
+                    <select
+                      value={editingEmotion || ''}
+                      onChange={(e) => setEditingEmotion(e.target.value || null)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    >
+                      <option value="">なし</option>
+                      {Object.entries(emotions).map(([key, value]) => (
+                        <option key={key} value={key}>
+                          {value.emoji} {value.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                {character.features.affectionEnabled && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-700 mb-1">好感度 (0-100)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={editingAffection !== null ? editingAffection : ''}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? null : Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+                        setEditingAffection(val);
+                      }}
+                      placeholder="なし"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex gap-2">
               <button
                 onClick={() => handleSaveEdit(index)}
