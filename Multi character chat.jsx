@@ -2236,7 +2236,7 @@ const MultiCharacterChat = () => {
 
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar */}
-        <div className={`w-64 bg-white border-r border-gray-200 overflow-y-auto p-3 fixed lg:relative inset-y-0 left-0 lg:inset-auto z-10 lg:z-auto shadow-lg lg:shadow-none ${showSidebar ? 'block' : 'hidden lg:block'}`}>
+        <div className={`w-64 bg-white border-r border-gray-200 overflow-y-auto p-3 flex-shrink-0 transition-all duration-300 ${showSidebar ? 'block' : 'hidden lg:block'}`}>
           <div className="flex gap-1 mb-3">
             <button
               onClick={() => setSidebarView('conversations')}
