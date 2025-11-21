@@ -3214,20 +3214,22 @@ const MessageBubble = React.memo(({
   };
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-      <div className={`max-w-4xl w-full ${
+    <div className={`flex ${
+      isNarration ? 'justify-center' : isUser ? 'justify-end' : 'justify-start'
+    }`}>
+      <div className={`${
         isNarration
-          ? 'bg-amber-50 border-l-4 border-amber-400 rounded-md'
+          ? 'max-w-3xl bg-gray-50 border-l-2 border-gray-400 rounded-lg shadow-sm'
           : isUser
-            ? 'bg-blue-100 rounded-2xl'
-            : 'bg-white rounded-2xl rounded-tl-none'
-      } shadow-md p-4`}>
+            ? 'max-w-4xl bg-blue-100 rounded-2xl shadow-md'
+            : 'max-w-4xl bg-white rounded-2xl rounded-tl-none shadow-md'
+      } w-full p-4`}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             {isNarration ? (
               <>
-                <FileText size={20} className="text-amber-600" />
-                <span className="font-semibold text-sm text-amber-700">地の文</span>
+                <FileText size={18} className="text-gray-500" />
+                <span className="font-medium text-sm text-gray-600">地の文</span>
               </>
             ) : isUser ? (
               <>
