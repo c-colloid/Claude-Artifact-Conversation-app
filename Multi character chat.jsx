@@ -3219,9 +3219,9 @@ const MessageBubble = React.memo(({
     }`}>
       <div className={`${
         isNarration
-          ? 'max-w-3xl bg-gray-50 border-l-2 border-gray-400 rounded-lg shadow-sm'
+          ? 'max-w-3xl bg-gray-50 border border-gray-300 rounded shadow-sm'
           : isUser
-            ? 'max-w-4xl bg-blue-100 rounded-2xl shadow-md'
+            ? 'max-w-4xl bg-blue-100 rounded-2xl rounded-tr-none shadow-md'
             : 'max-w-4xl bg-white rounded-2xl rounded-tl-none shadow-md'
       } w-full p-4`}>
         <div className="flex items-center justify-between mb-2">
