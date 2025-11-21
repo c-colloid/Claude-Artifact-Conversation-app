@@ -1568,7 +1568,7 @@ const CharacterChat = () => {
               ref={el => messageRefs.current[index] = el}
               className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              <div className={`max-w-4xl w-full ${message.role === 'user' ? 'bg-blue-100' : 'bg-white'} rounded-lg shadow-md p-4`}>
+              <div className={`max-w-4xl w-full ${message.role === 'user' ? 'bg-blue-100 rounded-2xl' : 'bg-white rounded-2xl rounded-tl-none'} shadow-md p-4`}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
                     {message.role === 'assistant' && currentFeatures?.avatarEnabled && (
@@ -1675,7 +1675,7 @@ const CharacterChat = () => {
 
           {isLoading && (
             <div className="flex justify-start">
-              <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="bg-white rounded-2xl rounded-tl-none shadow-md p-4">
                 <div className="flex items-center gap-3">
                   {currentFeatures?.avatarEnabled && (
                     currentFeatures.avatarType === 'image' && currentFeatures.avatarImage ? (

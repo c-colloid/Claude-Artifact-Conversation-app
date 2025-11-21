@@ -2589,7 +2589,7 @@ const MultiCharacterChat = () => {
 
           {isLoading && (
             <div className="flex justify-start">
-              <div className="bg-white rounded-lg shadow-md p-4">
+              <div className="bg-white rounded-2xl rounded-tl-none shadow-md p-4">
                 <div className="flex items-center gap-3">
                   <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
                   <span className="text-gray-600 text-sm">考え中...</span>
@@ -3217,11 +3217,11 @@ const MessageBubble = React.memo(({
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-4xl w-full ${
         isNarration
-          ? 'bg-amber-50 border-l-4 border-amber-400'
+          ? 'bg-amber-50 border-l-4 border-amber-400 rounded-md'
           : isUser
-            ? 'bg-blue-100'
-            : 'bg-white'
-      } rounded-lg shadow-md p-4`}>
+            ? 'bg-blue-100 rounded-2xl'
+            : 'bg-white rounded-2xl rounded-tl-none'
+      } shadow-md p-4`}>
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
             {isNarration ? (
