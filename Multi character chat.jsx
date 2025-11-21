@@ -1712,7 +1712,6 @@ const MultiCharacterChat = () => {
     // メッセージが表示範囲内の場合は即座にスクロール
     if (index >= currentStartIndex) {
       messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setShowSidebar(false);
       return;
     }
 
@@ -1724,8 +1723,6 @@ const MultiCharacterChat = () => {
     setTimeout(() => {
       messageRefs.current[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
-
-    setShowSidebar(false);
   }, [getAllMessages.length, visibleMessageCount]);
 
   const fetchModels = async () => {
