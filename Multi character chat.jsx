@@ -1496,6 +1496,8 @@ const MultiCharacterChat = () => {
     });
 
     setEditingIndex(null);
+    setEditingEmotion(null);
+    setEditingAffection(null);
   }, [getAllMessages, editingContent, editingEmotion, editingAffection, currentConversationId, updateConversation]);
 
   /**
@@ -1503,6 +1505,8 @@ const MultiCharacterChat = () => {
    */
   const handleCancelEdit = useCallback(() => {
     setEditingIndex(null);
+    setEditingEmotion(null);
+    setEditingAffection(null);
   }, []);
 
   /**
@@ -2466,9 +2470,13 @@ const MultiCharacterChat = () => {
               editingIndex={editingIndex}
               editingContent={editingContent}
               setEditingContent={setEditingContent}
+              editingEmotion={editingEmotion}
+              setEditingEmotion={setEditingEmotion}
+              editingAffection={editingAffection}
+              setEditingAffection={setEditingAffection}
               handleEdit={handleEdit}
               handleSaveEdit={handleSaveEdit}
-              handleCancelEdit={() => setEditingIndex(null)}
+              handleCancelEdit={handleCancelEdit}
               handleDelete={handleDelete}
               handleFork={handleFork}
               showRegeneratePrefill={showRegeneratePrefill}
@@ -3085,6 +3093,10 @@ const MessageBubble = React.memo(({
   editingIndex,
   editingContent,
   setEditingContent,
+  editingEmotion,
+  setEditingEmotion,
+  editingAffection,
+  setEditingAffection,
   handleEdit,
   handleSaveEdit,
   handleCancelEdit,
