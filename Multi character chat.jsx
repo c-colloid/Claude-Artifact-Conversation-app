@@ -3387,8 +3387,8 @@ const MessageBubble = React.memo(({
               className="w-full p-3 border border-gray-300 rounded-lg text-sm"
               rows={10}
             />
-            {!isNarration && !isUser && character && (
-              <div className="grid grid-cols-2 gap-3">
+            {!isNarration && !isUser && character && (character.features.emotionEnabled || character.features.affectionEnabled) && (
+              <div className={`gap-3 ${character.features.emotionEnabled && character.features.affectionEnabled ? 'grid grid-cols-2' : 'flex flex-col'}`}>
                 {character.features.emotionEnabled && (
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">感情</label>
@@ -3497,6 +3497,8 @@ const MessageBubble = React.memo(({
          prevProps.message.timestamp === nextProps.message.timestamp &&
          prevProps.editingIndex === nextProps.editingIndex &&
          prevProps.editingContent === nextProps.editingContent &&
+         prevProps.editingEmotion === nextProps.editingEmotion &&
+         prevProps.editingAffection === nextProps.editingAffection &&
          prevProps.showRegeneratePrefill === nextProps.showRegeneratePrefill &&
          prevProps.regeneratePrefill === nextProps.regeneratePrefill &&
          prevProps.showVersions?.[nextProps.index] === nextProps.showVersions?.[nextProps.index] &&
