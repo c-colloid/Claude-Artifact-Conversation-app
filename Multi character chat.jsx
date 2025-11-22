@@ -4042,13 +4042,13 @@ ${characterInfo}
   "baseCharacterId": null,
   "overrides": {},
   "definition": {
-    "personality": "性格の詳細な説明（2-3文程度、原作に忠実に）",
-    "speakingStyle": "話し方の特徴（「〜だよ」「〜です」など、原作での実際の口調を反映）",
+    "personality": "性格を1文で簡潔に（例: 優しく真面目で責任感が強い）",
+    "speakingStyle": "話し方を1文で簡潔に（例: 丁寧で誠実な口調）",
     "firstPerson": "一人称（原作で使用している一人称）",
     "secondPerson": "二人称（原作で使用している二人称）",
     "background": "背景やバックストーリー（3-5文程度、原作の設定に基づく）",
     "catchphrases": ["決め台詞1", "決め台詞2", "決め台詞3"],
-    "customPrompt": ""
+    "customPrompt": "【重要】ここに詳細なキャラクター情報を記述してください：\n\n# 性格の詳細\n- 基本的な性格特性（原作に基づく詳細な説明）\n- 価値観や信念\n- 行動パターンや癖\n- 感情表現の特徴\n\n# 話し方の詳細\n- 具体的な口調や語尾の使い方\n- よく使うフレーズや言い回し\n- 感情による話し方の変化\n- 特定の相手への話し方の違い\n\n# 関係性と振る舞い\n- 他者との接し方\n- 親しい人への態度\n- 初対面の人への態度\n\n# その他の特徴\n- 趣味や好きなもの\n- 苦手なことや嫌いなもの\n- 特技や能力\n- 原作での重要なエピソード\n\nこの情報を使ってキャラクターを演じてください。"
   },
   "features": {
     "emotionEnabled": true,
@@ -4066,7 +4066,7 @@ ${characterInfo}
 }
 
 Web検索で得た情報を元に、原作に忠実で自然なキャラクター設定を作成してください。
-特に personality, speakingStyle, firstPerson, secondPerson, background, catchphrases を正確に記入してください。`;
+特に **customPrompt** に詳細な情報を記述し、personality/speakingStyle は簡潔なラベルとして記入してください。`;
 
     const jsonTemplate = {
       id: `char_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -4074,13 +4074,38 @@ Web検索で得た情報を元に、原作に忠実で自然なキャラクタ�
       baseCharacterId: null,
       overrides: {},
       definition: {
-        personality: "",
-        speakingStyle: "",
-        firstPerson: "",
-        secondPerson: "",
-        background: "",
-        catchphrases: [],
-        customPrompt: ""
+        personality: "性格を1文で簡潔に",
+        speakingStyle: "話し方を1文で簡潔に",
+        firstPerson: "一人称",
+        secondPerson: "二人称",
+        background: "背景やバックストーリー（3-5文程度）",
+        catchphrases: ["決め台詞1", "決め台詞2", "決め台詞3"],
+        customPrompt: `【重要】ここに詳細なキャラクター情報を記述してください：
+
+# 性格の詳細
+- 基本的な性格特性（原作に基づく詳細な説明）
+- 価値観や信念
+- 行動パターンや癖
+- 感情表現の特徴
+
+# 話し方の詳細
+- 具体的な口調や語尾の使い方
+- よく使うフレーズや言い回し
+- 感情による話し方の変化
+- 特定の相手への話し方の違い
+
+# 関係性と振る舞い
+- 他者との接し方
+- 親しい人への態度
+- 初対面の人への態度
+
+# その他の特徴
+- 趣味や好きなもの
+- 苦手なことや嫌いなもの
+- 特技や能力
+- 原作での重要なエピソード
+
+この情報を使ってキャラクターを演じてください。`
       },
       features: {
         emotionEnabled: true,
@@ -4152,18 +4177,20 @@ Web検索で得た情報を元に、原作に忠実で自然なキャラクタ�
 キャラクターの説明:
 ${simpleDescription}
 
-以下のJSON形式で出力してください。JSONのみを出力し、説明文は不要です。
+以下のJSON形式で出力してください。JSONのみを出力し、説明文やコードブロック記号は不要です。
 {
   "name": "キャラクター名（説明から適切な名前を考案、または「新しいキャラクター」）",
-  "personality": "性格の詳細な説明（2-3文程度、説明を元に膨らませる）",
-  "speakingStyle": "話し方の特徴（「〜だよ」「〜です」など、性格に合った具体例を含む）",
+  "personality": "性格を1文で簡潔に（例: 明るく社交的で前向き）",
+  "speakingStyle": "話し方を1文で簡潔に（例: フレンドリーで親しみやすい口調）",
   "firstPerson": "一人称（「私」「僕」「俺」など、性格に合ったもの）",
   "secondPerson": "二人称（「あなた」「君」「お前」など、性格に合ったもの）",
   "background": "背景やバックストーリー（3-5文程度、説明を元に具体的に）",
-  "catchphrases": ["決め台詞1", "決め台詞2", "決め台詞3"]
+  "catchphrases": ["決め台詞1", "決め台詞2", "決め台詞3"],
+  "customPrompt": "【重要】ここに詳細なキャラクター情報を記述してください：\\n\\n# 性格の詳細\\n- 基本的な性格特性（説明を元に詳細に）\\n- 価値観や信念\\n- 行動パターンや癖\\n- 感情表現の特徴\\n\\n# 話し方の詳細\\n- 具体的な口調や語尾の使い方（「〜だよ」「〜です」など）\\n- よく使うフレーズや言い回し\\n- 感情による話し方の変化\\n- 特定の相手への話し方の違い\\n\\n# 関係性と振る舞い\\n- 他者との接し方\\n- 親しい人への態度\\n- 初対面の人への態度\\n\\n# その他の特徴\\n- 趣味や好きなもの\\n- 苦手なことや嫌いなもの\\n- 特技や能力\\n\\nこの情報を使ってキャラクターを演じてください。"
 }
 
-説明から想像を膨らませて、魅力的で自然なキャラクター設定を作成してください。`;
+説明から想像を膨らませて、魅力的で自然なキャラクター設定を作成してください。
+特に **customPrompt** に詳細な情報を記述し、personality/speakingStyle は簡潔なラベルとして記入してください。`;
 
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -4215,7 +4242,7 @@ ${simpleDescription}
 
     const newChar = {
       ...getDefaultCharacter(),
-      name: generatedCharacterPreview.name || autoSetupCharName,
+      name: generatedCharacterPreview.name || '新しいキャラクター',
       definition: {
         personality: generatedCharacterPreview.personality || '',
         speakingStyle: generatedCharacterPreview.speakingStyle || '',
@@ -4223,7 +4250,7 @@ ${simpleDescription}
         secondPerson: generatedCharacterPreview.secondPerson || 'あなた',
         background: generatedCharacterPreview.background || '',
         catchphrases: generatedCharacterPreview.catchphrases || [],
-        customPrompt: ''
+        customPrompt: generatedCharacterPreview.customPrompt || ''
       }
     };
 
@@ -5458,6 +5485,15 @@ ${simpleDescription}
                               <li key={idx} className="text-sm text-gray-800">{phrase}</li>
                             ))}
                           </ul>
+                        </div>
+                      )}
+
+                      {generatedCharacterPreview.customPrompt && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">詳細設定（カスタムプロンプト）</label>
+                          <div className="text-xs text-gray-800 bg-white p-3 rounded border whitespace-pre-wrap max-h-64 overflow-y-auto">
+                            {generatedCharacterPreview.customPrompt}
+                          </div>
                         </div>
                       )}
                     </div>
