@@ -1474,6 +1474,13 @@ const MultiCharacterChat = () => {
    */
   const handleEdit = useCallback((index) => {
     const message = getAllMessages[index];
+    console.log('Starting edit for message:', {
+      index,
+      type: message.type,
+      emotion: message.emotion,
+      affection: message.affection,
+      characterId: message.characterId
+    });
     setEditingIndex(index);
     setEditingContent(message.content);
     setEditingEmotion(message.emotion || null);
@@ -3274,14 +3281,17 @@ const MessageBubble = React.memo(({
               className="w-full p-3 border border-gray-300 rounded-lg text-sm"
               rows={10}
             />
-            {!isNarration && !isUser && character && (
-              <div className="grid grid-cols-2 gap-3">
+            {!isNarration && !isUser && character && (character.features.emotionEnabled || character.features.affectionEnabled) && (
+              <div className={`gap-3 ${character.features.emotionEnabled && character.features.affectionEnabled ? 'grid grid-cols-2' : 'flex flex-col'}`}>
                 {character.features.emotionEnabled && (
                   <div>
                     <label className="block text-xs font-medium text-gray-700 mb-1">感情</label>
                     <select
                       value={editingEmotion || ''}
-                      onChange={(e) => setEditingEmotion(e.target.value || null)}
+                      onChange={(e) => {
+                        console.log('Emotion changed:', e.target.value);
+                        setEditingEmotion(e.target.value || null);
+                      }}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     >
                       <option value="">なし</option>
@@ -3303,6 +3313,7 @@ const MessageBubble = React.memo(({
                       value={editingAffection !== null ? editingAffection : ''}
                       onChange={(e) => {
                         const val = e.target.value === '' ? null : Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
+                        console.log('Affection changed:', val);
                         setEditingAffection(val);
                       }}
                       placeholder="なし"
