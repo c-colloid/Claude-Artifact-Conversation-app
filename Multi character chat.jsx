@@ -4034,33 +4034,73 @@ ${characterInfo}
 
 **重要: Web検索を使用して、このキャラクターの正確な情報を収集してください。**
 
-以下のJSON形式で出力してください。JSONのみを出力し、説明文は不要です。
+以下のJSON形式で出力してください。JSONのみを出力し、説明文やコードブロック記号は不要です。
 
 {
-  "name": "キャラクター名",
-  "personality": "性格の詳細な説明（2-3文程度、原作に忠実に）",
-  "speakingStyle": "話し方の特徴（「〜だよ」「〜です」など、原作での実際の口調を反映）",
-  "firstPerson": "一人称（原作で使用している一人称）",
-  "secondPerson": "二人称（原作で使用している二人称）",
-  "background": "背景やバックストーリー（3-5文程度、原作の設定に基づく）",
-  "catchphrases": ["決め台詞1", "決め台詞2", "決め台詞3"]
+  "id": "char_${Date.now()}_${Math.random().toString(36).substr(2, 9)}",
+  "name": "${autoSetupCharName}",
+  "baseCharacterId": null,
+  "overrides": {},
+  "definition": {
+    "personality": "性格の詳細な説明（2-3文程度、原作に忠実に）",
+    "speakingStyle": "話し方の特徴（「〜だよ」「〜です」など、原作での実際の口調を反映）",
+    "firstPerson": "一人称（原作で使用している一人称）",
+    "secondPerson": "二人称（原作で使用している二人称）",
+    "background": "背景やバックストーリー（3-5文程度、原作の設定に基づく）",
+    "catchphrases": ["決め台詞1", "決め台詞2", "決め台詞3"],
+    "customPrompt": ""
+  },
+  "features": {
+    "emotionEnabled": true,
+    "affectionEnabled": true,
+    "autoManageEmotion": true,
+    "autoManageAffection": true,
+    "currentEmotion": "neutral",
+    "affectionLevel": 50,
+    "avatar": "😊",
+    "avatarType": "emoji",
+    "avatarImage": null
+  },
+  "created": "${new Date().toISOString()}",
+  "updated": "${new Date().toISOString()}"
 }
 
-Web検索で得た情報を元に、原作に忠実で自然なキャラクター設定を作成してください。`;
+Web検索で得た情報を元に、原作に忠実で自然なキャラクター設定を作成してください。
+特に personality, speakingStyle, firstPerson, secondPerson, background, catchphrases を正確に記入してください。`;
 
     const jsonTemplate = {
+      id: `char_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       name: autoSetupCharName,
-      personality: "",
-      speakingStyle: "",
-      firstPerson: "",
-      secondPerson: "",
-      background: "",
-      catchphrases: []
+      baseCharacterId: null,
+      overrides: {},
+      definition: {
+        personality: "",
+        speakingStyle: "",
+        firstPerson: "",
+        secondPerson: "",
+        background: "",
+        catchphrases: [],
+        customPrompt: ""
+      },
+      features: {
+        emotionEnabled: true,
+        affectionEnabled: true,
+        autoManageEmotion: true,
+        autoManageAffection: true,
+        currentEmotion: "neutral",
+        affectionLevel: 50,
+        avatar: "😊",
+        avatarType: "emoji",
+        avatarImage: null
+      },
+      created: new Date().toISOString(),
+      updated: new Date().toISOString()
     };
 
     setGeneratedTemplate({
       prompt: prompt,
-      jsonTemplate: JSON.stringify(jsonTemplate, null, 2)
+      jsonTemplate: JSON.stringify(jsonTemplate, null, 2),
+      fileName: `character_${autoSetupCharName}_${new Date().toISOString().slice(0, 10)}.json`
     });
   };
 
@@ -4075,6 +4115,23 @@ Web検索で得た情報を元に、原作に忠実で自然なキャラクタ�
       console.error('Copy failed:', error);
       alert('コピーに失敗しました。手動でコピーしてください。');
     }
+  };
+
+  /**
+   * テンプレートJSONをダウンロード
+   */
+  const handleDownloadTemplate = () => {
+    if (!generatedTemplate) return;
+
+    const blob = new Blob([generatedTemplate.jsonTemplate], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = generatedTemplate.fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   };
 
   /**
@@ -5226,8 +5283,38 @@ ${simpleDescription}
                       <textarea
                         value={generatedTemplate.prompt}
                         readOnly
-                        className="w-full px-4 py-2 border rounded-lg bg-gray-50 h-64 text-sm font-mono"
+                        className="w-full px-4 py-2 border rounded-lg bg-gray-50 h-48 text-sm font-mono"
                       />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium text-gray-700">テンプレートJSON</label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleCopyTemplate(generatedTemplate.jsonTemplate)}
+                            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
+                          >
+                            <Copy size={14} />
+                            コピー
+                          </button>
+                          <button
+                            onClick={handleDownloadTemplate}
+                            className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-1"
+                          >
+                            <Download size={14} />
+                            ダウンロード
+                          </button>
+                        </div>
+                      </div>
+                      <textarea
+                        value={generatedTemplate.jsonTemplate}
+                        readOnly
+                        className="w-full px-4 py-2 border rounded-lg bg-gray-50 h-48 text-sm font-mono"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        ファイル名: {generatedTemplate.fileName}
+                      </p>
                     </div>
 
                     <div className="border-t pt-4">
@@ -5239,6 +5326,9 @@ ${simpleDescription}
                         <li>AIが生成したJSON形式の設定をコピー</li>
                         <li>このアプリの「<strong>インポート</strong>」機能でJSONを読み込む</li>
                       </ol>
+                      <div className="mt-3 text-xs text-gray-600 bg-blue-50 p-2 rounded">
+                        💡 <strong>ヒント:</strong> テンプレートJSONをダウンロードして手動編集してからインポートすることもできます
+                      </div>
                     </div>
 
                     <div className="flex gap-3 pt-4">
