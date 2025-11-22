@@ -173,7 +173,7 @@ const MultiCharacterChat = () => {
   const STORE_KEY = 'mcc-v1';
   const SAVE_DELAY = 2000;
   const MAX_IMG = 2 * 1024 * 1024;
-  const models = [
+  const fallbackModels = [
     { id: 'claude-opus-4-1-20250805', name: 'Opus 4.1', icon: '👑' },
     { id: 'claude-opus-4-20250514', name: 'Opus 4', icon: '💎' },
     { id: 'claude-sonnet-4-5-20250929', name: 'Sonnet 4.5', icon: '⭐' },
@@ -1439,7 +1439,7 @@ const MultiCharacterChat = () => {
       <div className="bg-white shadow p-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
-            click={() => setShowSidebar(!showSide)}
+            onClick={() => setShowSidebar(!showSide)}
             className="p-2 hover:bg-gray-100 rounded transition lg:hidden"
           >
             {showSide ? <X size={20} /> : <Menu size={20} />}
@@ -1480,7 +1480,7 @@ const MultiCharacterChat = () => {
         </div>
         <div className="flex items-center gap-2">
           <button
-            click={() => setShowCharacterModal(true)}
+            onClick={() => setShowCharacterModal(true)}
             className="flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition text-sm"
           >
             <User size={16} />
@@ -1488,7 +1488,7 @@ const MultiCharacterChat = () => {
           </button>
           {curConv && (
             <button
-              click={() => setShowConversationSettings(!showConvSet)}
+              onClick={() => setShowConversationSettings(!showConvSet)}
               className="flex items-center gap-1 px-3 py-1.5 bg-purple-600 text-white rounded hover:bg-purple-700 transition text-sm"
             >
               <Users size={16} />
@@ -1496,7 +1496,7 @@ const MultiCharacterChat = () => {
             </button>
           )}
           <button
-            click={() => setShowSettings(!showSet)}
+            onClick={() => setShowSettings(!showSet)}
             className="p-2 hover:bg-gray-100 rounded transition"
           >
             <Settings size={20} />
@@ -1508,14 +1508,14 @@ const MultiCharacterChat = () => {
         <div className="bg-white border-b border-gray-200 p-4 space-y-3 max-h-96 overflow-y-auto">
           <div className="flex flex-wrap gap-2">
             <button
-              click={() => createNewConversation()}
+              onClick={() => createNewConversation()}
               className="flex items-center gap-1 px-3 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 transition text-sm"
             >
               <Plus size={16} />
               新規会話
             </button>
             <button
-              click={() => {
+              onClick={() => {
                 if (curConv) {
                   expConv(curConv.id);
                 }
@@ -1527,7 +1527,7 @@ const MultiCharacterChat = () => {
               会話保存
             </button>
             <button
-              click={() => convFileRef.current?.click()}
+              onClick={() => convFileRef.current?.click()}
               className="flex items-center gap-1 px-3 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition text-sm"
             >
               <Upload size={16} />
@@ -1544,7 +1544,7 @@ const MultiCharacterChat = () => {
                 <input
                   type="checkbox"
                   checked={autoSave}
-                  change={(e) => setAutoSaveEnabled(e.target.checked)}
+                  onChange={(e) => setAutoSaveEnabled(e.target.checked)}
                   className="w-4 h-4"
                 />
                 <span className="text-xs text-gray-700">有効</span>
@@ -1559,7 +1559,7 @@ const MultiCharacterChat = () => {
               <div className="flex items-center justify-between mb-1">
                 <label className="block text-sm font-medium text-gray-700">モデル</label>
                 <button
-                  click={fetchModels}
+                  onClick={fetchModels}
                   disabled={isLoadingModels}
                   className="text-indigo-600 hover:text-indigo-700 disabled:text-gray-400 p-1"
                   title="モデル一覧を更新"
@@ -1569,7 +1569,7 @@ const MultiCharacterChat = () => {
               </div>
               <select
                 value={model}
-                change={(e) => setSelectedModel(e.target.value)}
+                onChange={(e) => setSelectedModel(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
                 disabled={loading || isLoadingModels}
               >
@@ -1588,7 +1588,7 @@ const MultiCharacterChat = () => {
                 <input
                   type="checkbox"
                   checked={thinkingEnabled}
-                  change={(e) => setThinkingEnabled(e.target.checked)}
+                  onChange={(e) => setThinkingEnabled(e.target.checked)}
                   className="w-5 h-5"
                   disabled={loading}
                 />
@@ -1596,7 +1596,7 @@ const MultiCharacterChat = () => {
                   <input
                     type="number"
                     value={thinkingBudget}
-                    change={(e) => setThinkingBudget(Number(e.target.value))}
+                    onChange={(e) => setThinkingBudget(Number(e.target.value))}
                     className="flex-1 px-3 py-1.5 border border-gray-300 rounded text-sm"
                     min="1000"
                     max="10000"
@@ -1623,8 +1623,8 @@ const MultiCharacterChat = () => {
         <ConversationSettingsPanel
           conversation={curConv}
           characters={characters}
-          update={(updates) => updConv(curConv.id, updates)}
-          close={() => setShowConversationSettings(false)}
+          onUpdate={(updates) => updConv(curConv.id, updates)}
+          onClose={() => setShowConversationSettings(false)}
         />
       )}
       <div className="flex flex-1 overflow-hidden">
@@ -1632,7 +1632,7 @@ const MultiCharacterChat = () => {
         <div className={`w-64 bg-white border-r border-gray-200 overflow-y-auto p-3 flex-shrink-0 transition ${showSide ? 'block' : 'hidden lg:block'}`}>
           <div className="flex gap-1 mb-3">
             <button
-              click={() => setSidebarView('conversations')}
+              onClick={() => setSidebarView('conversations')}
               className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition ${
                 sideView === 'conversations'
                   ? 'bg-indigo-600 text-white'
@@ -1643,7 +1643,7 @@ const MultiCharacterChat = () => {
               会話
             </button>
             <button
-              click={() => setSidebarView('messages')}
+              onClick={() => setSidebarView('messages')}
               className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition ${
                 sideView === 'messages'
                   ? 'bg-indigo-600 text-white'
@@ -1655,7 +1655,7 @@ const MultiCharacterChat = () => {
               履歴
             </button>
             <button
-              click={() => setSidebarView('stats')}
+              onClick={() => setSidebarView('stats')}
               className={`flex-1 px-2 py-1.5 rounded text-xs font-medium transition ${
                 sideView === 'stats'
                   ? 'bg-indigo-600 text-white'
@@ -1675,7 +1675,7 @@ const MultiCharacterChat = () => {
                 会話一覧
               </span>
               <button
-                click={() => createNewConversation()}
+                onClick={() => createNewConversation()}
                 className="p-1 hover:bg-indigo-100 rounded"
                 title="新規会話"
               >
@@ -1691,7 +1691,7 @@ const MultiCharacterChat = () => {
                         key={conv.id}
                         conversation={conv}
                         isActive={isActive}
-                        select={setCurrentConversationId}
+                        onSelect={setCurrentConversationId}
                         onEditTitle={(id, title) => {
                           setEditingConversationTitle(id);
                           setEditingTitleText(title);
@@ -1726,7 +1726,7 @@ const MultiCharacterChat = () => {
                   return (
                     <button
                       key={idx}
-                      click={() => scrollToMessage(idx)}
+                      onClick={() => scrollToMessage(idx)}
                       className={`w-full text-left px-2 py-2 rounded text-xs transition ${
                         msg.type === 'user'
                           ? 'bg-blue-50 hover:bg-blue-100 text-blue-800'
@@ -1911,7 +1911,7 @@ const MultiCharacterChat = () => {
                 <>
                   <p className="text-sm mt-2 text-orange-600">⚠️ キャラクターを追加してください</p>
                   <button
-                    click={() => setShowConversationSettings(true)}
+                    onClick={() => setShowConversationSettings(true)}
                     className="mt-4 px-6 py-3 bg-purple-600 text-white rounded hover:bg-purple-700"
                   >
                     会話設定を開く
@@ -1926,7 +1926,7 @@ const MultiCharacterChat = () => {
           {getAllMsgs.length > visMsgCnt && (
             <div className="text-center py-2">
               <button
-                click={() => setVisibleMessageCount(prev => prev + MSG_INC)}
+                onClick={() => setVisibleMessageCount(prev => prev + MSG_INC)}
                 className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 transition text-sm font-medium flex items-center gap-2 mx-auto"
               >
                 <ChevronDown size={16} />
@@ -1999,7 +1999,7 @@ const MultiCharacterChat = () => {
         <div className="flex gap-2 items-center flex-wrap">
           <div className="flex gap-1 bg-gray-100 rounded p-1">
             <button
-              click={() => setMessageType('user')}
+              onClick={() => setMessageType('user')}
               className={`px-3 py-1.5 rounded text-sm font-medium transition ${
                 messageType === 'user'
                   ? 'bg-white text-indigo-600 shadow'
@@ -2010,7 +2010,7 @@ const MultiCharacterChat = () => {
               発言
             </button>
             <button
-              click={() => setMessageType('narration')}
+              onClick={() => setMessageType('narration')}
               className={`px-3 py-1.5 rounded text-sm font-medium transition ${
                 messageType === 'narration'
                   ? 'bg-white text-purple-600 shadow'
@@ -2027,7 +2027,7 @@ const MultiCharacterChat = () => {
               <label className="text-xs text-gray-600">次の発言者:</label>
               <select
                 value={nextSpeaker || ''}
-                change={(e) => setNextSpeaker(e.target.value || null)}
+                onChange={(e) => setNextSpeaker(e.target.value || null)}
                 className="px-2 py-1 text-sm border border-gray-300 rounded bg-white"
               >
                 <option value="">自動</option>
@@ -2047,7 +2047,7 @@ const MultiCharacterChat = () => {
           <input
             type="text"
             value={prefillText}
-            change={(e) => setPrefillText(e.target.value)}
+            onChange={(e) => setPrefillText(e.target.value)}
             placeholder="Prefill（オプション）"
             className="flex-1 min-w-[150px] px-3 py-2 border border-gray-300 rounded text-sm"
             disabled={loading}
@@ -2057,7 +2057,7 @@ const MultiCharacterChat = () => {
           <textarea
             ref={txtRef}
             value={prompt}
-            change={(e) => setUserPrompt(e.target.value)}
+            onChange={(e) => setUserPrompt(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
                 handleSend();
@@ -2077,7 +2077,7 @@ const MultiCharacterChat = () => {
             disabled={loading || !curConv || curConv.partIds.length === 0}
           />
           <button
-            click={handleSend}
+            onClick={handleSend}
             disabled={loading || !prompt.trim() || !curConv || curConv.partIds.length === 0}
             className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 transition disabled:bg-gray-300 flex items-center gap-2 text-sm self-end"
           >
@@ -2097,7 +2097,7 @@ const MultiCharacterChat = () => {
           impChar={impChar}
           charFileRef={charFileRef}
           emotions={emotions}
-          close={() => setShowCharacterModal(false)}
+          onClose={() => setShowCharacterModal(false)}
         />
       )}
       {}
@@ -2105,8 +2105,8 @@ const MultiCharacterChat = () => {
         <ConfirmDialog
           title={confirmDlg.title}
           message={confirmDlg.message}
-          confirm={confirmDlg.confirm}
-          cancel={confirmDlg.cancel}
+          onConfirm={confirmDlg.confirm}
+          onCancel={confirmDlg.cancel}
         />
       )}
       {}
@@ -2114,14 +2114,14 @@ const MultiCharacterChat = () => {
         ref={charFileRef}
         type="file"
         accept=".json"
-        change={impChar}
+        onChange={impChar}
         className="hidden"
       />
       <input
         ref={convFileRef}
         type="file"
         accept=".json"
-        change={importConversation}
+        onChange={importConversation}
         className="hidden"
       />
     </div>
@@ -2161,7 +2161,7 @@ const ConfirmDialog = React.memo(({ title, message, confirm, cancel }) => {
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-      click={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) {
           cancel();
         }
@@ -2173,13 +2173,13 @@ const ConfirmDialog = React.memo(({ title, message, confirm, cancel }) => {
           <p className="text-gray-600 whitespace-pre-line mb-6">{message}</p>
           <div className="flex gap-3 justify-end">
             <button
-              click={cancel}
+              onClick={cancel}
               className="px-4 py-2 bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
             >
               キャンセル
             </button>
             <button
-              click={confirm}
+              onClick={confirm}
               className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
             >
               OK
@@ -2225,7 +2225,7 @@ const EmojiPicker = ({ select, close }) => {
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-      click={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) {
           close();
         }
@@ -2233,12 +2233,12 @@ const EmojiPicker = ({ select, close }) => {
     >
       <div
         className="bg-white rounded shadow-xl w-full max-w-lg"
-        click={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="text-lg font-bold text-gray-800">絵文字を選択</h3>
           <button
-            click={(e) => {
+            onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               close();
@@ -2252,7 +2252,7 @@ const EmojiPicker = ({ select, close }) => {
           {Object.entries(emojiCategories).map(([key, category]) => (
             <button
               key={key}
-              click={(e) => {
+              onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 setActiveCategory(key);
@@ -2267,12 +2267,12 @@ const EmojiPicker = ({ select, close }) => {
             </button>
           ))}
         </div>
-        <div className="p-4 h-80 overflow-y-auto" click={(e) => e.stopPropagation()}>
+        <div className="p-4 h-80 overflow-y-auto" onClick={(e) => e.stopPropagation()}>
           <div className="grid grid-cols-8 gap-2">
             {emojiCategories[activeCategory].emojis.map((emoji, index) => (
               <button
                 key={index}
-                click={(e) => {
+                onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   select(emoji);
@@ -2400,7 +2400,7 @@ const ImageCropper = ({ imageSrc, crop, cancel }) => {
   return (
     <div
       className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-      click={(e) => {
+      onClick={(e) => {
         if (e.target === e.currentTarget) {
           cancel();
         }
@@ -2408,12 +2408,12 @@ const ImageCropper = ({ imageSrc, crop, cancel }) => {
     >
       <div
         className="bg-white rounded shadow-xl w-full max-w-md"
-        click={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b">
           <h3 className="text-lg font-bold text-gray-800">画像をクロップ</h3>
           <button
-            click={(e) => {
+            onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
               cancel();
@@ -2423,7 +2423,7 @@ const ImageCropper = ({ imageSrc, crop, cancel }) => {
             <X size={20} />
           </button>
         </div>
-        <div className="p-4 space-y-4" click={(e) => e.stopPropagation()}>
+        <div className="p-4 space-y-4" onClick={(e) => e.stopPropagation()}>
           <div className="relative">
             <canvas
               ref={canvasRef}
@@ -2446,7 +2446,7 @@ const ImageCropper = ({ imageSrc, crop, cancel }) => {
               max="3"
               step="0.1"
               value={zoom}
-              change={(e) => setZoom(parseFloat(e.target.value))}
+              onChange={(e) => setZoom(parseFloat(e.target.value))}
               className="w-full"
             />
           </div>
@@ -2455,7 +2455,7 @@ const ImageCropper = ({ imageSrc, crop, cancel }) => {
           </div>
           <div className="flex gap-2">
             <button
-              click={(e) => {
+              onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 handleCrop();
@@ -2465,7 +2465,7 @@ const ImageCropper = ({ imageSrc, crop, cancel }) => {
               クロップ
             </button>
             <button
-              click={(e) => {
+              onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 cancel();
@@ -2564,21 +2564,21 @@ const MessageBubble = React.memo(({
           </div>
           <div className="flex gap-1">
             <button
-              click={() => handleFork(index)}
+              onClick={() => handleFork(index)}
               className="p-1 text-gray-500 hover:text-green-600"
               title="ここから分岐"
             >
               <Copy size={14} />
             </button>
             <button
-              click={() => handleEdit(index)}
+              onClick={() => handleEdit(index)}
               className="p-1 text-gray-500 hover:text-blue-600"
               title="編集"
             >
               <Edit2 size={14} />
             </button>
             <button
-              click={() => handleDelete(index)}
+              onClick={() => handleDelete(index)}
               className="p-1 text-gray-500 hover:text-red-600"
               title="削除"
             >
@@ -2586,7 +2586,7 @@ const MessageBubble = React.memo(({
             </button>
             {!isUser && (
               <button
-                click={() => setShowRegeneratePrefill(showRegeneratePrefill === index ? null : index)}
+                onClick={() => setShowRegeneratePrefill(showRegeneratePrefill === index ? null : index)}
                 className="p-1 text-gray-500 hover:text-purple-600"
                 title="再生成"
               >
@@ -2603,7 +2603,7 @@ const MessageBubble = React.memo(({
             <input
               type="text"
               value={regeneratePrefill}
-              change={(e) => setRegeneratePrefill(e.target.value)}
+              onChange={(e) => setRegeneratePrefill(e.target.value)}
               placeholder={
                 message.type === 'narration'
                   ? "例: もっと緊張感のある描写で"
@@ -2613,7 +2613,7 @@ const MessageBubble = React.memo(({
             />
             <div className="flex gap-2">
               <button
-                click={() => handleRegenerateGroup(index)}
+                onClick={() => handleRegenerateGroup(index)}
                 className="flex-1 px-3 py-2 bg-purple-500 text-white rounded hover:bg-purple-600 text-xs font-medium flex items-center justify-center gap-1"
                 disabled={loading}
                 title="同じグループ内のこのバブル以降を再生成"
@@ -2622,7 +2622,7 @@ const MessageBubble = React.memo(({
                 ここから（グループ内）
               </button>
               <button
-                click={() => handleRegenerateFrom(index)}
+                onClick={() => handleRegenerateFrom(index)}
                 className="flex-1 px-3 py-2 bg-indigo-500 text-white rounded hover:bg-indigo-600 text-xs font-medium flex items-center justify-center gap-1"
                 disabled={loading}
                 title="このバブル以降の全メッセージを再生成"
@@ -2632,7 +2632,7 @@ const MessageBubble = React.memo(({
               </button>
             </div>
             <button
-              click={() => { setShowRegeneratePrefill(null); setRegeneratePrefill(''); }}
+              onClick={() => { setShowRegeneratePrefill(null); setRegeneratePrefill(''); }}
               className="w-full mt-2 px-3 py-1.5 bg-gray-400 text-white rounded hover:bg-gray-500 text-xs"
             >
               キャンセル
@@ -2644,7 +2644,7 @@ const MessageBubble = React.memo(({
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-semibold text-yellow-700">💭 思考</span>
               <button
-                click={() => setShowThinking(prev => ({ ...prev, [index]: !(prev[index] ?? true) }))}
+                onClick={() => setShowThinking(prev => ({ ...prev, [index]: !(prev[index] ?? true) }))}
                 className="text-yellow-600 hover:bg-yellow-100 p-1 rounded transition cursor-pointer"
               >
                 {(showThinking[index] ?? true) ? <EyeOff size={14} /> : <Eye size={14} />}
@@ -2661,7 +2661,7 @@ const MessageBubble = React.memo(({
           <div className="space-y-2">
             <textarea
               value={editingContent}
-              change={(e) => setEditingContent(e.target.value)}
+              onChange={(e) => setEditingContent(e.target.value)}
               className="w-full p-3 border border-gray-300 rounded text-sm"
               rows={10}
             />
@@ -2672,7 +2672,7 @@ const MessageBubble = React.memo(({
                     <label className="block text-xs font-medium text-gray-700 mb-1">感情</label>
                     <select
                       value={editEmo || ''}
-                      change={(e) => setEditingEmotion(e.target.value || null)}
+                      onChange={(e) => setEditingEmotion(e.target.value || null)}
                       className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
                     >
                       <option value="">なし</option>
@@ -2692,7 +2692,7 @@ const MessageBubble = React.memo(({
                       min="0"
                       max="100"
                       value={editAff !== null ? editAff : ''}
-                      change={(e) => {
+                      onChange={(e) => {
                         const val = e.target.value === '' ? null : Math.max(0, Math.min(100, parseInt(e.target.value) || 0));
                         setEditingAffection(val);
                       }}
@@ -2705,13 +2705,13 @@ const MessageBubble = React.memo(({
             )}
             <div className="flex gap-2">
               <button
-                click={() => handleSaveEdit(index)}
+                onClick={() => handleSaveEdit(index)}
                 className="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 text-sm"
               >
                 保存
               </button>
               <button
-                click={handleCancelEdit}
+                onClick={handleCancelEdit}
                 className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 text-sm"
               >
                 キャンセル
@@ -2728,7 +2728,7 @@ const MessageBubble = React.memo(({
               <div className="mt-3 pt-3 border-t border-gray-200">
                 <div className="flex items-center justify-between">
                   <button
-                    click={toggleVersions}
+                    onClick={toggleVersions}
                     className="flex items-center gap-2 text-xs text-gray-600 hover:text-gray-800 transition"
                   >
                     <History size={14} />
@@ -2743,7 +2743,7 @@ const MessageBubble = React.memo(({
                       return (
                         <button
                           key={alt.id}
-                          click={() => handleSwitchVersion(index, alt.id)}
+                          onClick={() => handleSwitchVersion(index, alt.id)}
                           className={`w-full text-left px-3 py-2 rounded text-xs transition ${
                             alt.isActive
                               ? 'bg-purple-100 border border-purple-300 text-purple-700 font-medium'
@@ -2802,7 +2802,7 @@ const ConversationListItem = React.memo(({
     >
       <div className="flex items-start gap-2 p-2">
         <button
-          click={() => select(conversation.id)}
+          onClick={() => select(conversation.id)}
           className="flex-1 text-left min-w-0"
         >
           <div className="flex items-center gap-2 mb-1">
@@ -2811,7 +2811,7 @@ const ConversationListItem = React.memo(({
               <input
                 type="text"
                 value={editingTitleText}
-                change={(e) => setEditingTitleText(e.target.value)}
+                onChange={(e) => setEditingTitleText(e.target.value)}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     updConv(conversation.id, { title: editingTitleText });
@@ -2820,7 +2820,7 @@ const ConversationListItem = React.memo(({
                     setEditingConversationTitle(null);
                   }
                 }}
-                click={(e) => e.stopPropagation()}
+                onClick={(e) => e.stopPropagation()}
                 onBlur={() => {
                   updConv(conversation.id, { title: editingTitleText });
                   setEditingConversationTitle(null);
@@ -2842,7 +2842,7 @@ const ConversationListItem = React.memo(({
         </button>
         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition flex-shrink-0">
           <button
-            click={(e) => {
+            onClick={(e) => {
               e.stopPropagation();
               onEditTitle(conversation.id, conversation.title);
             }}
@@ -2852,7 +2852,7 @@ const ConversationListItem = React.memo(({
             <Edit2 size={12} className="text-blue-600" />
           </button>
           <button
-            click={(e) => {
+            onClick={(e) => {
               e.stopPropagation();
               onExport(conversation.id);
             }}
@@ -2862,7 +2862,7 @@ const ConversationListItem = React.memo(({
             <Download size={12} className="text-green-600" />
           </button>
           <button
-            click={(e) => {
+            onClick={(e) => {
               e.stopPropagation();
               onDelete(conversation.id);
             }}
@@ -2938,14 +2938,14 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, update
       <div
         className="bg-white rounded shadow-xl w-full max-w-3xl my-8 flex flex-col"
         style={{ maxHeight: 'calc(100vh - 4rem)' }}
-        click={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="bg-white border-b p-4 flex items-center justify-between flex-shrink-0">
           <h3 className="font-semibold text-xl text-indigo-600 flex items-center gap-2">
             <Users size={24} />
             会話設定
           </h3>
-          <button click={close} className="p-2 hover:bg-gray-100 rounded transition">
+          <button onClick={close} className="p-2 hover:bg-gray-100 rounded transition">
             <X size={20} />
           </button>
         </div>
@@ -2955,7 +2955,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, update
         <input
           type="text"
           value={localTitle}
-          change={(e) => setLocalTitle(e.target.value)}
+          onChange={(e) => setLocalTitle(e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded"
         />
       </div>
@@ -2965,7 +2965,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, update
         </label>
         <textarea
           value={localBackground}
-          change={(e) => setLocalBackground(e.target.value)}
+          onChange={(e) => setLocalBackground(e.target.value)}
           placeholder="例: 学園の文化祭準備中。主人公は実行委員長。キャラクターたちは各自の出し物の準備をしている。"
           className="w-full px-3 py-2 border border-gray-300 rounded text-sm"
           rows={4}
@@ -2976,7 +2976,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, update
           <input
             type="checkbox"
             checked={localNarration}
-            change={(e) => setLocalNarration(e.target.checked)}
+            onChange={(e) => setLocalNarration(e.target.checked)}
             className="w-4 h-4"
           />
           <span className="text-sm font-medium text-gray-700">地の文を有効化</span>
@@ -2990,7 +2990,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, update
               <input
                 type="checkbox"
                 checked={localAutoNarration}
-                change={(e) => setLocalAutoNarration(e.target.checked)}
+                onChange={(e) => setLocalAutoNarration(e.target.checked)}
                 className="w-4 h-4"
               />
               <span className="text-sm font-medium text-purple-700">AIが自動で地の文を生成</span>
@@ -3017,7 +3017,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, update
                 <input
                   type="checkbox"
                   checked={localParticipants.includes(char.id)}
-                  change={() => toggleParticipant(char.id)}
+                  onChange={() => toggleParticipant(char.id)}
                   className="w-4 h-4"
                 />
                 <AvatarDisplay character={char} size="sm" />
@@ -3036,7 +3036,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, update
             キャラクター間の関係性 ({localRelationships.length}件)
           </label>
           <button
-            click={addRelationship}
+            onClick={addRelationship}
             disabled={localParticipants.length < 1}
             className="text-xs px-3 py-1 bg-green-100 text-green-700 rounded hover:bg-green-200 transition disabled:bg-gray-100 disabled:text-gray-400 flex items-center gap-1"
           >
@@ -3055,7 +3055,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, update
                 <div className="flex items-center gap-2">
                   <select
                     value={rel.char1Id}
-                    change={(e) => updateRelationship(idx, 'char1Id', e.target.value)}
+                    onChange={(e) => updateRelationship(idx, 'char1Id', e.target.value)}
                     className="flex-1 px-2 py-1 text-sm border rounded"
                   >
                     <option value="__user__">あなた</option>
@@ -3069,7 +3069,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, update
                   <span className="text-xs text-gray-500">と</span>
                   <select
                     value={rel.char2Id}
-                    change={(e) => updateRelationship(idx, 'char2Id', e.target.value)}
+                    onChange={(e) => updateRelationship(idx, 'char2Id', e.target.value)}
                     className="flex-1 px-2 py-1 text-sm border rounded"
                   >
                     <option value="__user__">あなた</option>
@@ -3083,7 +3083,7 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, update
                 </div>
                 <select
                   value={rel.type}
-                  change={(e) => updateRelationship(idx, 'type', e.target.value)}
+                  onChange={(e) => updateRelationship(idx, 'type', e.target.value)}
                   className="w-full px-2 py-1 text-sm border rounded"
                 >
                   {relationshipTypes.map(type => (
@@ -3094,12 +3094,12 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, update
                   <input
                     type="text"
                     value={rel.desc}
-                    change={(e) => updateRelationship(idx, 'desc', e.target.value)}
+                    onChange={(e) => updateRelationship(idx, 'desc', e.target.value)}
                     placeholder="詳細な説明（オプション）"
                     className="flex-1 px-2 py-1 text-sm border rounded"
                   />
                   <button
-                    click={() => deleteRelationship(idx)}
+                    onClick={() => deleteRelationship(idx)}
                     className="p-1 text-red-600 hover:bg-red-100 rounded"
                     title="削除"
                   >
@@ -3114,13 +3114,13 @@ const ConversationSettingsPanel = React.memo(({ conversation, characters, update
         </div>
         <div className="sticky bottom-0 bg-white border-t p-4 flex gap-2 flex-shrink-0">
           <button
-            click={handleSave}
+            onClick={handleSave}
             className="flex-1 px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 font-medium transition"
           >
             保存
           </button>
           <button
-            click={close}
+            onClick={close}
             className="px-4 py-2 bg-gray-500 text-white rounded hover:bg-gray-600 transition"
           >
             キャンセル
@@ -3543,7 +3543,7 @@ ${simpleDescription}
       <div
         className="bg-white rounded shadow-xl w-full max-w-4xl my-8 flex flex-col"
         style={{ maxHeight: 'calc(100vh - 4rem)' }}
-        click={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between p-4 border-b flex-shrink-0">
           <div className="flex items-center gap-3">
@@ -3560,7 +3560,7 @@ ${simpleDescription}
           <div className="flex items-center gap-2">
             {editingChar && (
               <button
-                click={(e) => {
+                onClick={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
                   setEditingChar(null);
@@ -3572,7 +3572,7 @@ ${simpleDescription}
               </button>
             )}
             <button
-              click={(e) => {
+              onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
                 close();
@@ -3606,7 +3606,7 @@ ${simpleDescription}
                       <input
                         type="checkbox"
                         checked={editingChar.overrides.name}
-                        change={() => toggleOverride('name')}
+                        onChange={() => toggleOverride('name')}
                         className="w-3 h-3"
                       />
                       カスタマイズ
@@ -3616,7 +3616,7 @@ ${simpleDescription}
                 <input
                   type="text"
                   value={editingChar.name}
-                  change={(e) => setEditingChar({...editingChar, name: e.target.value})}
+                  onChange={(e) => setEditingChar({...editingChar, name: e.target.value})}
                   className="w-full px-3 py-2 border rounded"
                   disabled={isDerived && !editingChar.overrides.name}
                 />
@@ -3634,7 +3634,7 @@ ${simpleDescription}
                       <input
                         type="checkbox"
                         checked={editingChar.overrides.pers}
-                        change={() => toggleOverride('pers')}
+                        onChange={() => toggleOverride('pers')}
                         className="w-3 h-3"
                       />
                       カスタマイズ
@@ -3644,7 +3644,7 @@ ${simpleDescription}
                 <input
                   type="text"
                   value={editingChar.definition.pers}
-                  change={(e) => setEditingChar({
+                  onChange={(e) => setEditingChar({
                     ...editingChar,
                     definition: {...editingChar.definition, pers: e.target.value}
                   })}
@@ -3665,7 +3665,7 @@ ${simpleDescription}
                       <input
                         type="checkbox"
                         checked={editingChar.overrides.speakingStyle}
-                        change={() => toggleOverride('speakingStyle')}
+                        onChange={() => toggleOverride('speakingStyle')}
                         className="w-3 h-3"
                       />
                       カスタマイズ
@@ -3675,7 +3675,7 @@ ${simpleDescription}
                 <input
                   type="text"
                   value={editingChar.definition.speakingStyle}
-                  change={(e) => setEditingChar({
+                  onChange={(e) => setEditingChar({
                     ...editingChar,
                     definition: {...editingChar.definition, speakingStyle: e.target.value}
                   })}
@@ -3697,7 +3697,7 @@ ${simpleDescription}
                         <input
                           type="checkbox"
                           checked={editingChar.overrides.firstPerson}
-                          change={() => toggleOverride('firstPerson')}
+                          onChange={() => toggleOverride('firstPerson')}
                           className="w-3 h-3"
                         />
                       </label>
@@ -3706,7 +3706,7 @@ ${simpleDescription}
                   <input
                     type="text"
                     value={editingChar.definition.firstPerson}
-                    change={(e) => setEditingChar({
+                    onChange={(e) => setEditingChar({
                       ...editingChar,
                       definition: {...editingChar.definition, firstPerson: e.target.value}
                     })}
@@ -3727,7 +3727,7 @@ ${simpleDescription}
                         <input
                           type="checkbox"
                           checked={editingChar.overrides.secondPerson}
-                          change={() => toggleOverride('secondPerson')}
+                          onChange={() => toggleOverride('secondPerson')}
                           className="w-3 h-3"
                         />
                       </label>
@@ -3736,7 +3736,7 @@ ${simpleDescription}
                   <input
                     type="text"
                     value={editingChar.definition.secondPerson}
-                    change={(e) => setEditingChar({
+                    onChange={(e) => setEditingChar({
                       ...editingChar,
                       definition: {...editingChar.definition, secondPerson: e.target.value}
                     })}
@@ -3749,7 +3749,7 @@ ${simpleDescription}
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium">口癖・決まり文句</label>
                   <button
-                    click={() => {
+                    onClick={() => {
                       const catchphrases = editingChar.definition.catchphrases || [];
                       setEditingChar({
                         ...editingChar,
@@ -3774,7 +3774,7 @@ ${simpleDescription}
                         <input
                           type="text"
                           value={phrase}
-                          change={(e) => {
+                          onChange={(e) => {
                             const newCatchphrases = [...editingChar.definition.catchphrases];
                             newCatchphrases[index] = e.target.value;
                             setEditingChar({
@@ -3786,7 +3786,7 @@ ${simpleDescription}
                           className="flex-1 px-3 py-2 border rounded text-sm"
                         />
                         <button
-                          click={() => {
+                          onClick={() => {
                             const newCatchphrases = editingChar.definition.catchphrases.filter((_, i) => i !== index);
                             setEditingChar({
                               ...editingChar,
@@ -3815,7 +3815,7 @@ ${simpleDescription}
                       <input
                         type="checkbox"
                         checked={editingChar.overrides.custPrompt}
-                        change={() => toggleOverride('custPrompt')}
+                        onChange={() => toggleOverride('custPrompt')}
                         className="w-3 h-3"
                       />
                       カスタマイズ
@@ -3824,7 +3824,7 @@ ${simpleDescription}
                 </div>
                 <textarea
                   value={editingChar.definition.custPrompt || ''}
-                  change={(e) => setEditingChar({
+                  onChange={(e) => setEditingChar({
                     ...editingChar,
                     definition: {...editingChar.definition, custPrompt: e.target.value}
                   })}
@@ -3844,7 +3844,7 @@ ${simpleDescription}
                       <input
                         type="checkbox"
                         checked={editingChar.overrides.avatar}
-                        change={() => toggleOverride('avatar')}
+                        onChange={() => toggleOverride('avatar')}
                         className="w-3 h-3"
                       />
                       カスタマイズ
@@ -3853,7 +3853,7 @@ ${simpleDescription}
                 </div>
                 <div className="flex gap-2 mb-2">
                   <button
-                    click={() => setEditingChar({
+                    onClick={() => setEditingChar({
                       ...editingChar,
                       features: {...editingChar.features, avatarType: 'emoji'}
                     })}
@@ -3867,7 +3867,7 @@ ${simpleDescription}
                     😊 絵文字
                   </button>
                   <button
-                    click={() => setEditingChar({
+                    onClick={() => setEditingChar({
                       ...editingChar,
                       features: {...editingChar.features, avatarType: 'image'}
                     })}
@@ -3890,7 +3890,7 @@ ${simpleDescription}
                         <span className="text-5xl">{editingChar.features.avatar || '😊'}</span>
                       </div>
                       <button
-                        click={(e) => {
+                        onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
                           setShowEmojiPicker(true);
@@ -3917,7 +3917,7 @@ ${simpleDescription}
                           </div>
                           <div className="flex flex-col gap-2">
                             <button
-                              click={(e) => {
+                              onClick={(e) => {
                                 e.stopPropagation();
                                 avatarImageInputRef.current?.click();
                               }}
@@ -3927,7 +3927,7 @@ ${simpleDescription}
                               変更
                             </button>
                             <button
-                              click={(e) => {
+                              onClick={(e) => {
                                 e.stopPropagation();
                                 setEditingChar({
                                   ...editingChar,
@@ -3964,7 +3964,7 @@ ${simpleDescription}
                             </p>
                             <p className="text-xs text-gray-500 mb-3">または</p>
                             <button
-                              click={(e) => {
+                              onClick={(e) => {
                                 e.preventDefault();
                                 e.stopPropagation();
                                 avatarImageInputRef.current?.click();
@@ -3997,7 +3997,7 @@ ${simpleDescription}
                 AIアシストキャラクター作成
               </h2>
               <button
-                click={handleCancelAutoSetup}
+                onClick={handleCancelAutoSetup}
                 className="p-2 hover:bg-gray-100 rounded transition"
               >
                 <X size={20} />
@@ -4006,7 +4006,7 @@ ${simpleDescription}
             {}
             <div className="flex border-b bg-gray-50">
               <button
-                click={() => {
+                onClick={() => {
                   setAutoSetupMode('template');
                   setGeneratedCharacterPreview(null);
                   setGeneratedTemplate(null);
@@ -4021,7 +4021,7 @@ ${simpleDescription}
                 既存キャラクター（テンプレート）
               </button>
               <button
-                click={() => {
+                onClick={() => {
                   setAutoSetupMode('simple');
                   setGeneratedCharacterPreview(null);
                   setGeneratedTemplate(null);
@@ -4053,7 +4053,7 @@ ${simpleDescription}
                       <input
                         type="text"
                         value={autoSetupCharName}
-                        change={(e) => setAutoSetupCharName(e.target.value)}
+                        onChange={(e) => setAutoSetupCharName(e.target.value)}
                         placeholder="例: 竈門炭治郎、初音ミク、etc..."
                         className="w-full px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
@@ -4065,7 +4065,7 @@ ${simpleDescription}
                       <input
                         type="text"
                         value={autoSetupWorkName}
-                        change={(e) => setAutoSetupWorkName(e.target.value)}
+                        onChange={(e) => setAutoSetupWorkName(e.target.value)}
                         placeholder="例: 鬼滅の刃、VOCALOID、etc..."
                         className="w-full px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       />
@@ -4076,14 +4076,14 @@ ${simpleDescription}
                       </label>
                       <textarea
                         value={autoSetupAdditionalInfo}
-                        change={(e) => setAutoSetupAdditionalInfo(e.target.value)}
+                        onChange={(e) => setAutoSetupAdditionalInfo(e.target.value)}
                         placeholder="キャラクターの特徴や設定について追加情報があれば入力してください&#10;例: 明るく前向きな性格、剣術が得意、家族思い、etc..."
                         className="w-full px-4 py-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-transparent h-24 resize-none"
                       />
                     </div>
                     <div className="flex gap-3 pt-4">
                       <button
-                        click={handleGenerateTemplate}
+                        onClick={handleGenerateTemplate}
                         disabled={!autoSetupCharName.trim()}
                         className="flex-1 px-6 py-3 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
                       >
@@ -4091,7 +4091,7 @@ ${simpleDescription}
                         プロンプト&テンプレート生成
                       </button>
                       <button
-                        click={handleCancelAutoSetup}
+                        onClick={handleCancelAutoSetup}
                         className="px-6 py-3 bg-gray-500 text-white rounded hover:bg-gray-600"
                       >
                         キャンセル
@@ -4109,7 +4109,7 @@ ${simpleDescription}
                       <div className="flex items-center justify-between mb-2">
                         <label className="block text-sm font-medium text-gray-700">プロンプト</label>
                         <button
-                          click={() => handleCopyTemplate(generatedTemplate.prompt)}
+                          onClick={() => handleCopyTemplate(generatedTemplate.prompt)}
                           className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
                         >
                           <Copy size={14} />
@@ -4127,14 +4127,14 @@ ${simpleDescription}
                         <label className="block text-sm font-medium text-gray-700">テンプレートJSON</label>
                         <div className="flex gap-2">
                           <button
-                            click={() => handleCopyTemplate(generatedTemplate.jsonTemplate)}
+                            onClick={() => handleCopyTemplate(generatedTemplate.jsonTemplate)}
                             className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
                           >
                             <Copy size={14} />
                             コピー
                           </button>
                           <button
-                            click={handleDownloadTemplate}
+                            onClick={handleDownloadTemplate}
                             className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-1"
                           >
                             <Download size={14} />
@@ -4166,13 +4166,13 @@ ${simpleDescription}
                     </div>
                     <div className="flex gap-3 pt-4">
                       <button
-                        click={() => setGeneratedTemplate(null)}
+                        onClick={() => setGeneratedTemplate(null)}
                         className="flex-1 px-6 py-3 bg-gray-500 text-white rounded hover:bg-gray-600"
                       >
                         やり直す
                       </button>
                       <button
-                        click={handleCancelAutoSetup}
+                        onClick={handleCancelAutoSetup}
                         className="px-6 py-3 bg-indigo-600 text-white rounded hover:bg-indigo-700"
                       >
                         完了
@@ -4195,7 +4195,7 @@ ${simpleDescription}
                       </label>
                       <textarea
                         value={simpleDescription}
-                        change={(e) => setSimpleDescription(e.target.value)}
+                        onChange={(e) => setSimpleDescription(e.target.value)}
                         placeholder="例: 明るくて元気な女子高生、料理が得意で家族思い。いつも笑顔で周りを元気にする。&#10;&#10;例: クールで無口な剣士、黒髪に青い瞳。実は優しい性格で仲間思い。"
                         className="w-full px-4 py-2 border rounded focus:ring-2 focus:ring-purple-500 focus:border-transparent h-40 resize-none"
                         disabled={isGeneratingCharacter}
@@ -4213,7 +4213,7 @@ ${simpleDescription}
                     )}
                     <div className="flex gap-3 pt-4">
                       <button
-                        click={handleGenerateFromSimple}
+                        onClick={handleGenerateFromSimple}
                         disabled={isGeneratingCharacter || !simpleDescription.trim()}
                         className="flex-1 px-6 py-3 bg-purple-600 text-white rounded hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
                       >
@@ -4230,7 +4230,7 @@ ${simpleDescription}
                         )}
                       </button>
                       <button
-                        click={handleCancelAutoSetup}
+                        onClick={handleCancelAutoSetup}
                         disabled={isGeneratingCharacter}
                         className="px-6 py-3 bg-gray-500 text-white rounded hover:bg-gray-600 disabled:bg-gray-300"
                       >
@@ -4293,14 +4293,14 @@ ${simpleDescription}
                     </div>
                     <div className="flex gap-3 pt-4">
                       <button
-                        click={handleApplyGeneratedCharacter}
+                        onClick={handleApplyGeneratedCharacter}
                         className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded hover:bg-indigo-700 flex items-center justify-center gap-2 font-medium"
                       >
                         <Check size={16} />
                         この設定で作成
                       </button>
                       <button
-                        click={() => {
+                        onClick={() => {
                           setGeneratedCharacterPreview(null);
                           setGenerationError(null);
                         }}
