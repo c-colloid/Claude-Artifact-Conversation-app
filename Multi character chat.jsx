@@ -3912,13 +3912,16 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
   const [lastSavedCharacterId, setLastSavedCharacterId] = useState(null);
   const avatarImageInputRef = useRef(null);
 
-  // --- 既存キャラクター自動セットアップ関連State ---
+  // --- AIアシストキャラクター作成関連State ---
   const [showAutoSetupModal, setShowAutoSetupModal] = useState(false);
+  const [autoSetupMode, setAutoSetupMode] = useState('template'); // 'template' or 'simple'
   const [autoSetupCharName, setAutoSetupCharName] = useState('');
   const [autoSetupWorkName, setAutoSetupWorkName] = useState('');
   const [autoSetupAdditionalInfo, setAutoSetupAdditionalInfo] = useState('');
+  const [simpleDescription, setSimpleDescription] = useState('');
   const [isGeneratingCharacter, setIsGeneratingCharacter] = useState(false);
   const [generatedCharacterPreview, setGeneratedCharacterPreview] = useState(null);
+  const [generatedTemplate, setGeneratedTemplate] = useState(null);
   const [generationError, setGenerationError] = useState(null);
 
   /**
@@ -4009,33 +4012,181 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
   };
 
   /**
-   * 既存キャラクター自動セットアップのハンドラー
+   * AIアシストキャラクター作成のハンドラー
    */
   const handleStartAutoSetup = () => {
     setShowAutoSetupModal(true);
+    setAutoSetupMode('template');
     setAutoSetupCharName('');
     setAutoSetupWorkName('');
     setAutoSetupAdditionalInfo('');
+    setSimpleDescription('');
     setGeneratedCharacterPreview(null);
+    setGeneratedTemplate(null);
     setGenerationError(null);
   };
 
   const handleCancelAutoSetup = () => {
     setShowAutoSetupModal(false);
+    setAutoSetupMode('template');
     setAutoSetupCharName('');
     setAutoSetupWorkName('');
     setAutoSetupAdditionalInfo('');
+    setSimpleDescription('');
     setGeneratedCharacterPreview(null);
+    setGeneratedTemplate(null);
     setGenerationError(null);
     setIsGeneratingCharacter(false);
   };
 
   /**
-   * Claude APIを使ってキャラクター定義を生成
+   * テンプレート＆プロンプト生成（WebSearch推奨）
    */
-  const handleGenerateCharacter = async () => {
+  const handleGenerateTemplate = () => {
     if (!autoSetupCharName.trim()) {
       alert('キャラクター名を入力してください');
+      return;
+    }
+
+    const characterInfo = `キャラクター名: ${autoSetupCharName}${autoSetupWorkName ? `\n作品名: ${autoSetupWorkName}` : ''}${autoSetupAdditionalInfo ? `\n追加情報: ${autoSetupAdditionalInfo}` : ''}`;
+
+    const prompt = `あなたはキャラクター設定の専門家です。以下のキャラクターについて、Web検索を使って正確な情報を収集し、会話アプリ用のキャラクター設定を生成してください。
+
+${characterInfo}
+
+**重要: Web検索を使用して、このキャラクターの正確な情報を収集してください。**
+
+以下のJSON形式で出力してください。JSONのみを出力し、説明文やコードブロック記号は不要です。
+
+{
+  "id": "char_${Date.now()}_${Math.random().toString(36).substr(2, 9)}",
+  "name": "${autoSetupCharName}",
+  "baseCharacterId": null,
+  "overrides": {},
+  "definition": {
+    "personality": "性格を1文で簡潔に（例: 優しく真面目で責任感が強い）",
+    "speakingStyle": "話し方を1文で簡潔に（例: 丁寧で誠実な口調）",
+    "firstPerson": "一人称（原作で使用している一人称）",
+    "secondPerson": "二人称（原作で使用している二人称）",
+    "background": "背景やバックストーリー（3-5文程度、原作の設定に基づく）",
+    "catchphrases": ["決め台詞1", "決め台詞2", "決め台詞3"],
+    "customPrompt": "【重要】ここに詳細なキャラクター情報を記述してください：\n\n# 性格の詳細\n- 基本的な性格特性（原作に基づく詳細な説明）\n- 価値観や信念\n- 行動パターンや癖\n- 感情表現の特徴\n\n# 話し方の詳細\n- 具体的な口調や語尾の使い方\n- よく使うフレーズや言い回し\n- 感情による話し方の変化\n- 特定の相手への話し方の違い\n\n# 関係性と振る舞い\n- 他者との接し方\n- 親しい人への態度\n- 初対面の人への態度\n\n# その他の特徴\n- 趣味や好きなもの\n- 苦手なことや嫌いなもの\n- 特技や能力\n- 原作での重要なエピソード\n\nこの情報を使ってキャラクターを演じてください。"
+  },
+  "features": {
+    "emotionEnabled": true,
+    "affectionEnabled": true,
+    "autoManageEmotion": true,
+    "autoManageAffection": true,
+    "currentEmotion": "neutral",
+    "affectionLevel": 50,
+    "avatar": "😊",
+    "avatarType": "emoji",
+    "avatarImage": null
+  },
+  "created": "${new Date().toISOString()}",
+  "updated": "${new Date().toISOString()}"
+}
+
+Web検索で得た情報を元に、原作に忠実で自然なキャラクター設定を作成してください。
+特に **customPrompt** に詳細な情報を記述し、personality/speakingStyle は簡潔なラベルとして記入してください。`;
+
+    const jsonTemplate = {
+      id: `char_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      name: autoSetupCharName,
+      baseCharacterId: null,
+      overrides: {},
+      definition: {
+        personality: "性格を1文で簡潔に",
+        speakingStyle: "話し方を1文で簡潔に",
+        firstPerson: "一人称",
+        secondPerson: "二人称",
+        background: "背景やバックストーリー（3-5文程度）",
+        catchphrases: ["決め台詞1", "決め台詞2", "決め台詞3"],
+        customPrompt: `【重要】ここに詳細なキャラクター情報を記述してください：
+
+# 性格の詳細
+- 基本的な性格特性（原作に基づく詳細な説明）
+- 価値観や信念
+- 行動パターンや癖
+- 感情表現の特徴
+
+# 話し方の詳細
+- 具体的な口調や語尾の使い方
+- よく使うフレーズや言い回し
+- 感情による話し方の変化
+- 特定の相手への話し方の違い
+
+# 関係性と振る舞い
+- 他者との接し方
+- 親しい人への態度
+- 初対面の人への態度
+
+# その他の特徴
+- 趣味や好きなもの
+- 苦手なことや嫌いなもの
+- 特技や能力
+- 原作での重要なエピソード
+
+この情報を使ってキャラクターを演じてください。`
+      },
+      features: {
+        emotionEnabled: true,
+        affectionEnabled: true,
+        autoManageEmotion: true,
+        autoManageAffection: true,
+        currentEmotion: "neutral",
+        affectionLevel: 50,
+        avatar: "😊",
+        avatarType: "emoji",
+        avatarImage: null
+      },
+      created: new Date().toISOString(),
+      updated: new Date().toISOString()
+    };
+
+    setGeneratedTemplate({
+      prompt: prompt,
+      jsonTemplate: JSON.stringify(jsonTemplate, null, 2),
+      fileName: `character_${autoSetupCharName}_${new Date().toISOString().slice(0, 10)}.json`
+    });
+  };
+
+  /**
+   * クリップボードにコピー
+   */
+  const handleCopyTemplate = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('クリップボードにコピーしました！');
+    } catch (error) {
+      console.error('Copy failed:', error);
+      alert('コピーに失敗しました。手動でコピーしてください。');
+    }
+  };
+
+  /**
+   * テンプレートJSONをダウンロード
+   */
+  const handleDownloadTemplate = () => {
+    if (!generatedTemplate) return;
+
+    const blob = new Blob([generatedTemplate.jsonTemplate], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = generatedTemplate.fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  /**
+   * 簡単な説明からキャラクター定義を生成（提案2: AIキャラクター生成アシスタント）
+   */
+  const handleGenerateFromSimple = async () => {
+    if (!simpleDescription.trim()) {
+      alert('キャラクターの説明を入力してください');
       return;
     }
 
@@ -4043,24 +4194,25 @@ const CharacterModal = React.memo(({ characters, setCharacters, characterGroups,
     setGenerationError(null);
 
     try {
-      const prompt = `以下の情報から、会話アプリのキャラクター設定を生成してください。
+      const prompt = `以下の簡単な説明から、会話アプリ用の詳細なキャラクター設定を生成してください。
 
-キャラクター名: ${autoSetupCharName}
-${autoSetupWorkName ? `作品名: ${autoSetupWorkName}` : ''}
-${autoSetupAdditionalInfo ? `追加情報: ${autoSetupAdditionalInfo}` : ''}
+キャラクターの説明:
+${simpleDescription}
 
-以下のJSON形式で出力してください。JSONのみを出力し、説明文は不要です。
+以下のJSON形式で出力してください。JSONのみを出力し、説明文やコードブロック記号は不要です。
 {
-  "name": "キャラクター名",
-  "personality": "性格の詳細な説明（2-3文程度）",
-  "speakingStyle": "話し方の特徴（「〜だよ」「〜です」など具体例を含む）",
-  "firstPerson": "一人称（「私」「僕」「俺」など）",
-  "secondPerson": "二人称（「あなた」「君」「お前」など）",
-  "background": "背景やバックストーリー（3-5文程度）",
-  "catchphrases": ["決め台詞1", "決め台詞2", "決め台詞3"]
+  "name": "キャラクター名（説明から適切な名前を考案、または「新しいキャラクター」）",
+  "personality": "性格を1文で簡潔に（例: 明るく社交的で前向き）",
+  "speakingStyle": "話し方を1文で簡潔に（例: フレンドリーで親しみやすい口調）",
+  "firstPerson": "一人称（「私」「僕」「俺」など、性格に合ったもの）",
+  "secondPerson": "二人称（「あなた」「君」「お前」など、性格に合ったもの）",
+  "background": "背景やバックストーリー（3-5文程度、説明を元に具体的に）",
+  "catchphrases": ["決め台詞1", "決め台詞2", "決め台詞3"],
+  "customPrompt": "【重要】ここに詳細なキャラクター情報を記述してください：\\n\\n# 性格の詳細\\n- 基本的な性格特性（説明を元に詳細に）\\n- 価値観や信念\\n- 行動パターンや癖\\n- 感情表現の特徴\\n\\n# 話し方の詳細\\n- 具体的な口調や語尾の使い方（「〜だよ」「〜です」など）\\n- よく使うフレーズや言い回し\\n- 感情による話し方の変化\\n- 特定の相手への話し方の違い\\n\\n# 関係性と振る舞い\\n- 他者との接し方\\n- 親しい人への態度\\n- 初対面の人への態度\\n\\n# その他の特徴\\n- 趣味や好きなもの\\n- 苦手なことや嫌いなもの\\n- 特技や能力\\n\\nこの情報を使ってキャラクターを演じてください。"
 }
 
-キャラクターの特徴を活かした、自然で魅力的な設定を作成してください。`;
+説明から想像を膨らませて、魅力的で自然なキャラクター設定を作成してください。
+特に **customPrompt** に詳細な情報を記述し、personality/speakingStyle は簡潔なラベルとして記入してください。`;
 
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -4112,7 +4264,7 @@ ${autoSetupAdditionalInfo ? `追加情報: ${autoSetupAdditionalInfo}` : ''}
 
     const newChar = {
       ...getDefaultCharacter(),
-      name: generatedCharacterPreview.name || autoSetupCharName,
+      name: generatedCharacterPreview.name || '新しいキャラクター',
       definition: {
         personality: generatedCharacterPreview.personality || '',
         speakingStyle: generatedCharacterPreview.speakingStyle || '',
@@ -4120,7 +4272,7 @@ ${autoSetupAdditionalInfo ? `追加情報: ${autoSetupAdditionalInfo}` : ''}
         secondPerson: generatedCharacterPreview.secondPerson || 'あなた',
         background: generatedCharacterPreview.background || '',
         catchphrases: generatedCharacterPreview.catchphrases || [],
-        customPrompt: ''
+        customPrompt: generatedCharacterPreview.customPrompt || ''
       }
     };
 
@@ -4888,7 +5040,7 @@ ${autoSetupAdditionalInfo ? `追加情報: ${autoSetupAdditionalInfo}` : ''}
                   className="flex-1 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 flex items-center justify-center gap-2"
                 >
                   <User size={16} />
-                  既存キャラクターから作成
+                  AIアシストキャラクター作成
                 </button>
               </div>
 
@@ -5030,14 +5182,14 @@ ${autoSetupAdditionalInfo ? `追加情報: ${autoSetupAdditionalInfo}` : ''}
         />
       )}
 
-      {/* 既存キャラクター自動セットアップモーダル */}
+      {/* AIアシストキャラクター作成モーダル */}
       {showAutoSetupModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
             <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <User size={24} className="text-purple-600" />
-                既存キャラクターから作成
+                AIアシストキャラクター作成
               </h2>
               <button
                 onClick={handleCancelAutoSetup}
@@ -5047,163 +5199,338 @@ ${autoSetupAdditionalInfo ? `追加情報: ${autoSetupAdditionalInfo}` : ''}
               </button>
             </div>
 
-            <div className="p-6 space-y-4">
-              {!generatedCharacterPreview ? (
-                <>
-                  <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                    <p className="text-sm text-purple-900">
-                      <strong>💡 ヒント:</strong> キャラクター名と作品名を入力すると、AIが自動的にキャラクター設定を生成します。
-                      既存のアニメ・漫画・ゲームキャラクターだけでなく、オリジナルキャラクターの説明からも生成できます。
-                    </p>
-                  </div>
+            {/* タブ */}
+            <div className="flex border-b bg-gray-50">
+              <button
+                onClick={() => {
+                  setAutoSetupMode('template');
+                  setGeneratedCharacterPreview(null);
+                  setGeneratedTemplate(null);
+                  setGenerationError(null);
+                }}
+                className={`flex-1 px-6 py-3 font-medium transition-colors ${
+                  autoSetupMode === 'template'
+                    ? 'text-purple-600 border-b-2 border-purple-600 bg-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                既存キャラクター（テンプレート）
+              </button>
+              <button
+                onClick={() => {
+                  setAutoSetupMode('simple');
+                  setGeneratedCharacterPreview(null);
+                  setGeneratedTemplate(null);
+                  setGenerationError(null);
+                }}
+                className={`flex-1 px-6 py-3 font-medium transition-colors ${
+                  autoSetupMode === 'simple'
+                    ? 'text-purple-600 border-b-2 border-purple-600 bg-white'
+                    : 'text-gray-600 hover:bg-gray-100'
+                }`}
+              >
+                オリジナルキャラクター（AI生成）
+              </button>
+            </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      キャラクター名 <span className="text-red-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={autoSetupCharName}
-                      onChange={(e) => setAutoSetupCharName(e.target.value)}
-                      placeholder="例: 竈門炭治郎、初音ミク、etc..."
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      disabled={isGeneratingCharacter}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      作品名（任意）
-                    </label>
-                    <input
-                      type="text"
-                      value={autoSetupWorkName}
-                      onChange={(e) => setAutoSetupWorkName(e.target.value)}
-                      placeholder="例: 鬼滅の刃、VOCALOID、etc..."
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                      disabled={isGeneratingCharacter}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      追加情報（任意）
-                    </label>
-                    <textarea
-                      value={autoSetupAdditionalInfo}
-                      onChange={(e) => setAutoSetupAdditionalInfo(e.target.value)}
-                      placeholder="キャラクターの特徴や設定について追加情報があれば入力してください&#10;例: 明るく前向きな性格、剣術が得意、家族思い、etc..."
-                      className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-24 resize-none"
-                      disabled={isGeneratingCharacter}
-                    />
-                  </div>
-
-                  {generationError && (
-                    <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                      <p className="text-sm text-red-900">
-                        <strong>エラー:</strong> {generationError}
+            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+              {autoSetupMode === 'template' ? (
+                // テンプレート生成モード
+                !generatedTemplate ? (
+                  <>
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                      <p className="text-sm text-blue-900">
+                        <strong>📋 テンプレート生成:</strong> キャラクター名と作品名を入力すると、WebSearch対応AIで使用するプロンプトとテンプレートを生成します。
+                        生成されたプロンプトを Claude.ai などのWebSearch対応AIに入力して、正確なキャラクター設定を作成してください。
                       </p>
                     </div>
-                  )}
 
-                  <div className="flex gap-3 pt-4">
-                    <button
-                      onClick={handleGenerateCharacter}
-                      disabled={isGeneratingCharacter || !autoSetupCharName.trim()}
-                      className="flex-1 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
-                    >
-                      {isGeneratingCharacter ? (
-                        <>
-                          <RefreshCw size={16} className="animate-spin" />
-                          生成中...
-                        </>
-                      ) : (
-                        <>
-                          <User size={16} />
-                          キャラクター設定を生成
-                        </>
-                      )}
-                    </button>
-                    <button
-                      onClick={handleCancelAutoSetup}
-                      disabled={isGeneratingCharacter}
-                      className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 disabled:bg-gray-300"
-                    >
-                      キャンセル
-                    </button>
-                  </div>
-                </>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        キャラクター名 <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={autoSetupCharName}
+                        onChange={(e) => setAutoSetupCharName(e.target.value)}
+                        placeholder="例: 竈門炭治郎、初音ミク、etc..."
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        作品名（任意）
+                      </label>
+                      <input
+                        type="text"
+                        value={autoSetupWorkName}
+                        onChange={(e) => setAutoSetupWorkName(e.target.value)}
+                        placeholder="例: 鬼滅の刃、VOCALOID、etc..."
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        追加情報（任意）
+                      </label>
+                      <textarea
+                        value={autoSetupAdditionalInfo}
+                        onChange={(e) => setAutoSetupAdditionalInfo(e.target.value)}
+                        placeholder="キャラクターの特徴や設定について追加情報があれば入力してください&#10;例: 明るく前向きな性格、剣術が得意、家族思い、etc..."
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent h-24 resize-none"
+                      />
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={handleGenerateTemplate}
+                        disabled={!autoSetupCharName.trim()}
+                        className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
+                      >
+                        <FileText size={16} />
+                        プロンプト&テンプレート生成
+                      </button>
+                      <button
+                        onClick={handleCancelAutoSetup}
+                        className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                      >
+                        キャンセル
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  // テンプレート表示画面
+                  <>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <p className="text-sm text-green-900">
+                        <strong>✅ プロンプト生成完了:</strong> 以下のプロンプトをコピーして、Claude.ai などのWebSearch対応AIに入力してください。
+                      </p>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium text-gray-700">プロンプト</label>
+                        <button
+                          onClick={() => handleCopyTemplate(generatedTemplate.prompt)}
+                          className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
+                        >
+                          <Copy size={14} />
+                          コピー
+                        </button>
+                      </div>
+                      <textarea
+                        value={generatedTemplate.prompt}
+                        readOnly
+                        className="w-full px-4 py-2 border rounded-lg bg-gray-50 h-48 text-sm font-mono"
+                      />
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium text-gray-700">テンプレートJSON</label>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleCopyTemplate(generatedTemplate.jsonTemplate)}
+                            className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
+                          >
+                            <Copy size={14} />
+                            コピー
+                          </button>
+                          <button
+                            onClick={handleDownloadTemplate}
+                            className="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700 flex items-center gap-1"
+                          >
+                            <Download size={14} />
+                            ダウンロード
+                          </button>
+                        </div>
+                      </div>
+                      <textarea
+                        value={generatedTemplate.jsonTemplate}
+                        readOnly
+                        className="w-full px-4 py-2 border rounded-lg bg-gray-50 h-48 text-sm font-mono"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        ファイル名: {generatedTemplate.fileName}
+                      </p>
+                    </div>
+
+                    <div className="border-t pt-4">
+                      <h3 className="font-medium text-gray-900 mb-3">📝 次の手順:</h3>
+                      <ol className="list-decimal list-inside space-y-2 text-sm text-gray-700">
+                        <li>上記のプロンプトを <strong>コピー</strong> してください</li>
+                        <li><strong>Claude.ai</strong> を新しいタブで開く（WebSearch機能が利用可能）</li>
+                        <li>新しいチャットでプロンプトを貼り付けて送信</li>
+                        <li>AIが生成したJSON形式の設定をコピー</li>
+                        <li>このアプリの「<strong>インポート</strong>」機能でJSONを読み込む</li>
+                      </ol>
+                      <div className="mt-3 text-xs text-gray-600 bg-blue-50 p-2 rounded">
+                        💡 <strong>ヒント:</strong> テンプレートJSONをダウンロードして手動編集してからインポートすることもできます
+                      </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={() => setGeneratedTemplate(null)}
+                        className="flex-1 px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                      >
+                        やり直す
+                      </button>
+                      <button
+                        onClick={handleCancelAutoSetup}
+                        className="px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                      >
+                        完了
+                      </button>
+                    </div>
+                  </>
+                )
               ) : (
-                <>
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                    <p className="text-sm text-green-900">
-                      <strong>✅ 生成完了:</strong> キャラクター設定が生成されました。内容を確認して、必要に応じて編集画面で調整してください。
-                    </p>
-                  </div>
-
-                  <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">名前</label>
-                      <p className="text-base font-semibold">{generatedCharacterPreview.name}</p>
+                // シンプル説明モード（提案2）
+                !generatedCharacterPreview ? (
+                  <>
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <p className="text-sm text-purple-900">
+                        <strong>✨ AI生成:</strong> 簡単な説明を入力すると、AIが詳細なキャラクター設定を自動生成します。
+                        オリジナルキャラクターの作成に最適です。
+                      </p>
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">性格</label>
-                      <p className="text-sm text-gray-800">{generatedCharacterPreview.personality}</p>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        キャラクターの説明 <span className="text-red-500">*</span>
+                      </label>
+                      <textarea
+                        value={simpleDescription}
+                        onChange={(e) => setSimpleDescription(e.target.value)}
+                        placeholder="例: 明るくて元気な女子高生、料理が得意で家族思い。いつも笑顔で周りを元気にする。&#10;&#10;例: クールで無口な剣士、黒髪に青い瞳。実は優しい性格で仲間思い。"
+                        className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent h-40 resize-none"
+                        disabled={isGeneratingCharacter}
+                      />
+                      <p className="text-xs text-gray-500 mt-1">
+                        性格、外見、特技、背景などを自由に記述してください
+                      </p>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">話し方</label>
-                      <p className="text-sm text-gray-800">{generatedCharacterPreview.speakingStyle}</p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">一人称</label>
-                        <p className="text-sm text-gray-800">{generatedCharacterPreview.firstPerson}</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">二人称</label>
-                        <p className="text-sm text-gray-800">{generatedCharacterPreview.secondPerson}</p>
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">背景</label>
-                      <p className="text-sm text-gray-800">{generatedCharacterPreview.background}</p>
-                    </div>
-
-                    {generatedCharacterPreview.catchphrases && generatedCharacterPreview.catchphrases.length > 0 && (
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">決め台詞</label>
-                        <ul className="list-disc list-inside space-y-1">
-                          {generatedCharacterPreview.catchphrases.map((phrase, idx) => (
-                            <li key={idx} className="text-sm text-gray-800">{phrase}</li>
-                          ))}
-                        </ul>
+                    {generationError && (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                        <p className="text-sm text-red-900">
+                          <strong>エラー:</strong> {generationError}
+                        </p>
                       </div>
                     )}
-                  </div>
 
-                  <div className="flex gap-3 pt-4">
-                    <button
-                      onClick={handleApplyGeneratedCharacter}
-                      className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center justify-center gap-2 font-medium"
-                    >
-                      <Check size={16} />
-                      この設定で作成
-                    </button>
-                    <button
-                      onClick={() => {
-                        setGeneratedCharacterPreview(null);
-                        setGenerationError(null);
-                      }}
-                      className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-                    >
-                      やり直す
-                    </button>
-                  </div>
-                </>
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={handleGenerateFromSimple}
+                        disabled={isGeneratingCharacter || !simpleDescription.trim()}
+                        className="flex-1 px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-medium"
+                      >
+                        {isGeneratingCharacter ? (
+                          <>
+                            <RefreshCw size={16} className="animate-spin" />
+                            生成中...
+                          </>
+                        ) : (
+                          <>
+                            <User size={16} />
+                            キャラクター設定を生成
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={handleCancelAutoSetup}
+                        disabled={isGeneratingCharacter}
+                        className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 disabled:bg-gray-300"
+                      >
+                        キャンセル
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  // プレビュー画面
+                  <>
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <p className="text-sm text-green-900">
+                        <strong>✅ 生成完了:</strong> キャラクター設定が生成されました。内容を確認して、必要に応じて編集画面で調整してください。
+                      </p>
+                    </div>
+
+                    <div className="space-y-3 border rounded-lg p-4 bg-gray-50">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">名前</label>
+                        <p className="text-base font-semibold">{generatedCharacterPreview.name}</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">性格</label>
+                        <p className="text-sm text-gray-800">{generatedCharacterPreview.personality}</p>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">話し方</label>
+                        <p className="text-sm text-gray-800">{generatedCharacterPreview.speakingStyle}</p>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">一人称</label>
+                          <p className="text-sm text-gray-800">{generatedCharacterPreview.firstPerson}</p>
+                        </div>
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">二人称</label>
+                          <p className="text-sm text-gray-800">{generatedCharacterPreview.secondPerson}</p>
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">背景</label>
+                        <p className="text-sm text-gray-800">{generatedCharacterPreview.background}</p>
+                      </div>
+
+                      {generatedCharacterPreview.catchphrases && generatedCharacterPreview.catchphrases.length > 0 && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">決め台詞</label>
+                          <ul className="list-disc list-inside space-y-1">
+                            {generatedCharacterPreview.catchphrases.map((phrase, idx) => (
+                              <li key={idx} className="text-sm text-gray-800">{phrase}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {generatedCharacterPreview.customPrompt && (
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">詳細設定（カスタムプロンプト）</label>
+                          <div className="text-xs text-gray-800 bg-white p-3 rounded border whitespace-pre-wrap max-h-64 overflow-y-auto">
+                            {generatedCharacterPreview.customPrompt}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex gap-3 pt-4">
+                      <button
+                        onClick={handleApplyGeneratedCharacter}
+                        className="flex-1 px-6 py-3 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center justify-center gap-2 font-medium"
+                      >
+                        <Check size={16} />
+                        この設定で作成
+                      </button>
+                      <button
+                        onClick={() => {
+                          setGeneratedCharacterPreview(null);
+                          setGenerationError(null);
+                        }}
+                        className="px-6 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
+                      >
+                        やり直す
+                      </button>
+                    </div>
+                  </>
+                )
               )}
             </div>
           </div>
