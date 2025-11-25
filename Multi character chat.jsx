@@ -144,8 +144,8 @@ const MultiCharacterChat=()=> {
   const [edCont, sEdCont]=useState('');
   const [editEmo, sEdEmo]=useState(null);
   const [editAff, sEdAff]=useState(null);
-  const [rePre, sRePre]=useState('');
-  const [sRePre, sSRePre]=useState(null);
+  const [rePre, setRePre]=useState('');
+  const [showRePre, setShowRePre]=useState(null);
   const [edConvTtl, sEdConvTtl]=useState(null);
   const [edTtl, sEdTtl]=useState('');
   const [showVers, sShowVer]=useState({});
@@ -1152,8 +1152,8 @@ const MultiCharacterChat=()=> {
       messages: updatedMessages
     });
     await generateResponse(historyUpToPoint, false, prefill);
-    sRePre('');
-    sSRePre(null);
+    setRePre('');
+    setShowRePre(null);
   }, [getAllMsgs, curConvId, updConv, rePre, generateResponse, getCharById]);
   const handleRegenerateFrom=useCallback(async (index)=> {
     const currentMessages=getAllMsgs;
@@ -1169,8 +1169,8 @@ const MultiCharacterChat=()=> {
       const trimmedPrefill=rePre.trim()==='' ? '' : rePre.trimEnd();
       await generateResponse(historyUpToPoint, false, trimmedPrefill);
     }
-    sRePre('');
-    sSRePre(null);
+    setRePre('');
+    setShowRePre(null);
   }, [getAllMsgs, curConvId, updConv, rePre, generateResponse]);
   const handleSwitchVersion=useCallback((msgIdx, alternativeId)=> {
     const currentMessages=getAllMsgs;
@@ -1806,10 +1806,10 @@ const MultiCharacterChat=()=> {
               hCancel={hCancel}
               hDel={hDel}
               hFork={hFork}
-              sRePre={sRePre}
-              sSRePre={sSRePre}
+              showRePre={showRePre}
+              setShowRePre={setShowRePre}
               rePre={rePre}
-              sRePre={sRePre}
+              setRePre={setRePre}
               hRegenGrp={hRegenGrp}
               handleRegenerateFrom={handleRegenerateFrom}
               handleSwitchVersion={handleSwitchVersion}
@@ -2261,10 +2261,10 @@ const MessageBubble=React.memo(({
   hCancel,
   hDel,
   hFork,
-  sRePre,
-  sSRePre,
+  showRePre,
+  setShowRePre,
   rePre,
-  sRePre,
+  setRePre,
   hRegenGrp,
   handleRegenerateFrom,
   handleSwitchVersion,
@@ -2327,19 +2327,19 @@ const MessageBubble=React.memo(({
             ><Trash2 size={14} /></button>
             {!isUser&&(
               <button
-                onClick={()=> sSRePre(sRePre===index ? null : index)}
+                onClick={()=> setShowRePre(showRePre===index ? null : index)}
                 className="p-1 text-gray-500 hover:text-purple-600"
                 title="再生成"
               ><RotateCcw size={14} /></button>
             )}
           </div></div>
-        {sRePre===index&&!isUser&&(
+        {showRePre===index&&!isUser&&(
           <div className="mb-3 bg-purple-50 border border-purple-200 rounded p-3"><label className="block text-xs text-purple-700 mb-2">
               再生成プリフィル（オプション）
             </label><input
               type="text"
               value={rePre}
-              onChange={(e)=> sRePre(e.target.value)}
+              onChange={(e)=> setRePre(e.target.value)}
               placeholder={
                 message.type==='narration'
                   ? "例: もっと緊張感のある描写で"
@@ -2361,7 +2361,7 @@ const MessageBubble=React.memo(({
               ><SkipForward size={12} />
                 ここから（全体）
               </button></div><button
-              onClick={()=> { sSRePre(null); sRePre(''); }}
+              onClick={()=> { setShowRePre(null); setRePre(''); }}
               className="w-full mt-2 px-3 py-1.5 bg-gray-400 text-white rounded hover:bg-gray-500 text-xs"
             >
               キャンセル
@@ -2478,7 +2478,7 @@ const MessageBubble=React.memo(({
          prevProps.edCont===nextProps.edCont &&
          prevProps.editEmo===nextProps.editEmo &&
          prevProps.editAff===nextProps.editAff &&
-         prevProps.sRePre===nextProps.sRePre &&
+         prevProps.showRePre===nextProps.showRePre &&
          prevProps.rePre===nextProps.rePre &&
          prevProps.showVers?.[nextProps.index]===nextProps.showVers?.[nextProps.index] &&
          prevProps.character?.id===nextProps.character?.id;
