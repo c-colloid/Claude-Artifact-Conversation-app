@@ -391,6 +391,92 @@ const MultiCharacterChat: React.FC = () => {
     },
   });
 
+  // ===== Export Conversation =====
+  const exportConversation = useCallback(
+    (conversationId: string) => {
+      const conversation = conversationManager.getConversationById(conversationId);
+      if (!conversation) return;
+
+      const exportData = JSON.stringify(conversation, null, 2);
+      const blob = new Blob([exportData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `conversation_${conversation.title}_${getTimestamp()}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    },
+    [conversationManager]
+  );
+
+  // ===== Delete Conversation with Confirmation =====
+  const deleteConversationWithConfirm = useCallback(
+    (conversationId: string) => {
+      const conversation = conversationManager.getConversationById(conversationId);
+      if (!conversation) return;
+
+      setConfirmDialog({
+        title: '会話を削除',
+        message: `「${conversation.title}」を削除しますか？この操作は取り消せません。`,
+        onConfirm: () => {
+          conversationManager.deleteConversation(conversationId);
+          setConfirmDialog(null);
+        },
+        onCancel: () => setConfirmDialog(null),
+      });
+    },
+    [conversationManager]
+  );
+
+  // ===== Regenerate Group (from index) =====
+  const handleRegenerateGroup = useCallback(
+    (index: number) => {
+      const currentConversation = conversationManager.getCurrentConversation;
+      if (!currentConversation) return;
+
+      const messages = currentConversation.messages;
+      const targetMessage = messages[index];
+      if (!targetMessage || !targetMessage.responseGroupId) return;
+
+      // Find all messages in the same group from this index onward
+      const groupId = targetMessage.responseGroupId;
+      const newMessages = messages.filter((msg, idx) => {
+        if (idx < index) return true; // Keep messages before index
+        if (msg.responseGroupId === groupId) return false; // Remove same group messages
+        return true; // Keep other messages
+      });
+
+      conversationManager.updateConversation(currentConversation.id, {
+        messages: newMessages,
+      });
+
+      // User can manually send message with prefill text to regenerate
+      setShowRegeneratePrefill(null);
+    },
+    [conversationManager]
+  );
+
+  // ===== Regenerate From (index onward) =====
+  const handleRegenerateFrom = useCallback(
+    (index: number) => {
+      const currentConversation = conversationManager.getCurrentConversation;
+      if (!currentConversation) return;
+
+      const messages = currentConversation.messages;
+      const newMessages = messages.slice(0, index);
+
+      conversationManager.updateConversation(currentConversation.id, {
+        messages: newMessages,
+      });
+
+      // User can manually send message with prefill text to regenerate
+      setShowRegeneratePrefill(null);
+    },
+    [conversationManager]
+  );
+
   // ===== Initialization =====
   useEffect(() => {
     const initialize = async () => {
@@ -484,8 +570,8 @@ const MultiCharacterChat: React.FC = () => {
                     setEditingConversationTitle(id);
                     setEditingTitleText(title);
                   }}
-                  onExport={() => {}}
-                  onDelete={() => {}}
+                  onExport={exportConversation}
+                  onDelete={deleteConversationWithConfirm}
                   editingConversationTitle={editingConversationTitle}
                   editingTitleText={editingTitleText}
                   setEditingTitleText={setEditingTitleText}
@@ -545,8 +631,8 @@ const MultiCharacterChat: React.FC = () => {
                     setShowRegeneratePrefill={setShowRegeneratePrefill}
                     regeneratePrefill={regeneratePrefill}
                     setRegeneratePrefill={setRegeneratePrefill}
-                    handleRegenerateGroup={() => {}}
-                    handleRegenerateFrom={() => {}}
+                    handleRegenerateGroup={handleRegenerateGroup}
+                    handleRegenerateFrom={handleRegenerateFrom}
                     handleSwitchVersion={(index, altId) =>
                       messageManager.handleSwitchVersion(index, altId, currentConversation?.id || null, messages)
                     }
