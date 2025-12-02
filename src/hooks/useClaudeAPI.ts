@@ -129,7 +129,7 @@ export const useClaudeAPI = (options: UseClaudeAPIOptions) => {
             }
 
             return {
-              role: msg.role,
+              role: msg.role || (msg.type === 'user' || msg.type === 'narration' ? 'user' : 'assistant'),
               content: content,
             };
           });

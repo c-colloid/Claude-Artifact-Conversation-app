@@ -48,6 +48,9 @@ const MultiCharacterChat: React.FC = () => {
   const [showVersions, setShowVersions] = useState<Record<number, boolean>>({});
   const [showRegeneratePrefill, setShowRegeneratePrefill] = useState<number | null>(null);
   const [regeneratePrefill, setRegeneratePrefill] = useState('');
+
+  // Refs
+  const characterFileInputRef = useRef<HTMLInputElement>(null);
   const [editingConversationTitle, setEditingConversationTitle] = useState<string | null>(null);
   const [editingTitleText, setEditingTitleText] = useState('');
 
@@ -514,7 +517,7 @@ const MultiCharacterChat: React.FC = () => {
             <div className="space-y-4 mb-6 max-h-[600px] overflow-y-auto">
               {messages.map((msg, idx) => {
                 const char = msg.characterId
-                  ? characterManager.getCharacterById(msg.characterId)
+                  ? (characterManager.getCharacterById(msg.characterId) || null)
                   : null;
                 return (
                   <MessageBubble
@@ -602,10 +605,10 @@ const MultiCharacterChat: React.FC = () => {
           setCharacters={characterManager.setAllCharacters}
           characterGroups={[]}
           setCharacterGroups={() => {}}
-          getDefaultCharacter={() => characterManager.createCharacter()}
+          getDefaultCharacter={() => characterManager.createCharacter({})}
           exportCharacter={() => {}}
           importCharacter={() => {}}
-          characterFileInputRef={useRef<HTMLInputElement>(null)}
+          characterFileInputRef={characterFileInputRef}
           emotions={EMOTIONS}
           onClose={() => setShowCharacterModal(false)}
         />

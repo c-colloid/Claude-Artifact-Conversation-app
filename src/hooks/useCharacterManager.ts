@@ -189,8 +189,8 @@ export const useCharacterManager = () => {
   /**
    * Set all characters (for loading from storage)
    */
-  const setAllCharacters = useCallback((newCharacters: Character[]) => {
-    setCharacters(newCharacters);
+  const setAllCharacters = useCallback((value: React.SetStateAction<Character[]>) => {
+    setCharacters(value);
   }, []);
 
   return {
