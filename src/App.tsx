@@ -606,8 +606,8 @@ const MultiCharacterChat: React.FC = () => {
           characterGroups={[]}
           setCharacterGroups={() => {}}
           getDefaultCharacter={() => characterManager.createCharacter({})}
-          exportCharacter={() => {}}
-          importCharacter={() => {}}
+          exportCharacter={characterManager.exportCharacter}
+          importCharacter={characterManager.importCharacter}
           characterFileInputRef={characterFileInputRef}
           emotions={EMOTIONS}
           onClose={() => setShowCharacterModal(false)}

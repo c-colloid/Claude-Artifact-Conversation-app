@@ -6,6 +6,7 @@
 import { useState, useCallback } from 'react';
 import type { Character } from '../types';
 import { generateId, createTimestamps, getTimestamp } from '../lib/utils';
+import { generateFileName } from '../lib/helpers';
 
 export const useCharacterManager = () => {
   const [characters, setCharacters] = useState<Character[]>([]);
@@ -187,6 +188,58 @@ export const useCharacterManager = () => {
   );
 
   /**
+   * Export character to JSON file
+   */
+  const exportCharacter = useCallback(
+    (characterId: string) => {
+      const char = getCharacterById(characterId);
+      if (!char) return;
+
+      const exportData = JSON.stringify(char, null, 2);
+      const blob = new Blob([exportData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = generateFileName('character', char.name);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    },
+    [getCharacterById]
+  );
+
+  /**
+   * Import character from JSON file
+   */
+  const importCharacter = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        try {
+          const char = JSON.parse(e.target?.result as string);
+          const newChar: Character = {
+            ...char,
+            id: generateId(),
+            name: `${char.name}（インポート）`,
+            ...createTimestamps(),
+          };
+
+          setCharacters((prev) => [...prev, newChar]);
+        } catch (err) {
+          console.error('Failed to import character:', err);
+        }
+      };
+      reader.readAsText(file);
+      event.target.value = '';
+    },
+    []
+  );
+
+  /**
    * Set all characters (for loading from storage)
    */
   const setAllCharacters = useCallback((value: React.SetStateAction<Character[]>) => {
@@ -201,6 +254,8 @@ export const useCharacterManager = () => {
     updateCharacter,
     deleteCharacter,
     duplicateCharacter,
+    exportCharacter,
+    importCharacter,
     setAllCharacters,
   };
 };

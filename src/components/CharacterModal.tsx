@@ -30,7 +30,7 @@ interface CharacterModalProps {
   characterGroups: CharacterGroup[];
   setCharacterGroups: React.Dispatch<React.SetStateAction<CharacterGroup[]>>;
   getDefaultCharacter: () => Character;
-  exportCharacter: (character: Character) => void;
+  exportCharacter: (characterId: string) => void;
   importCharacter: (event: React.ChangeEvent<HTMLInputElement>) => void;
   characterFileInputRef: React.RefObject<HTMLInputElement>;
   emotions: Record<string, EmotionInfo>;
@@ -341,7 +341,7 @@ const CharacterModal: React.FC<CharacterModalProps> = ({
                       派生
                     </button>
                     <button
-                      onClick={() => exportCharacter(char)}
+                      onClick={() => exportCharacter(char.id)}
                       className="px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
                     >
                       <Download size={14} />
