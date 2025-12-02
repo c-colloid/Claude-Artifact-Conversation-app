@@ -3,10 +3,10 @@
  * Multi-character conversation app with Claude API integration
  */
 
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import type { Character, Conversation, Message, EmotionInfo } from './types';
+import React, { useState, useCallback, useEffect } from 'react';
+import type { Character, Conversation, Message } from './types';
 import { EMOTIONS } from './constants';
-import { generateId, getTimestamp, createTimestamps } from './lib/utils';
+import { generateId, getTimestamp } from './lib/utils';
 import { useCharacterManager } from './hooks/useCharacterManager';
 import { useConversationManager } from './hooks/useConversationManager';
 import { useStorage } from './hooks/useStorage';
@@ -22,9 +22,8 @@ import MessageBubble from './components/MessageBubble';
 const MultiCharacterChat: React.FC = () => {
   // ===== State管理 =====
   const [isInitialized, setIsInitialized] = useState(false);
-  const [showCharacterModal, setShowCharacterModal] = useState(false);
   const [showConversationSettings, setShowConversationSettings] = useState(false);
-  const [confirmDialog, setConfirmDialog] = useState<{
+  const [confirmDialog] = useState<{
     title: string;
     message: string;
     onConfirm: () => void;
@@ -34,8 +33,8 @@ const MultiCharacterChat: React.FC = () => {
   // Message input state
   const [userPrompt, setUserPrompt] = useState('');
   const [messageType, setMessageType] = useState<'user' | 'narration'>('user');
-  const [nextSpeaker, setNextSpeaker] = useState<string | null>(null);
-  const [prefillText, setPrefillText] = useState('');
+  const [nextSpeaker] = useState<string | null>(null);
+  const [prefillText] = useState('');
 
   // Model settings
   const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5-20250929');

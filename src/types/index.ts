@@ -57,11 +57,13 @@ export interface MessageAlternative {
   emotion?: string;
   affection?: number;
   thinking?: string;
+  timestamp?: string;
   isActive: boolean;
 }
 
 export interface Message {
   id: string;
+  role?: 'user' | 'assistant';
   type: 'user' | 'character' | 'narration';
   characterId?: string;
   content: string;
