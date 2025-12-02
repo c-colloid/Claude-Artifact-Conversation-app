@@ -18,6 +18,7 @@ import ConfirmDialog from './components/ConfirmDialog';
 import ConversationCard from './components/ConversationCard';
 import ConversationSettings from './components/ConversationSettings';
 import MessageBubble from './components/MessageBubble';
+import CharacterModal from './components/CharacterModal';
 
 const MultiCharacterChat: React.FC = () => {
   // ===== State管理 =====
@@ -494,7 +495,13 @@ const MultiCharacterChat: React.FC = () => {
 
           {/* Main Chat Area */}
           <main className="col-span-9 bg-white rounded-lg shadow-lg p-6">
-            <div className="mb-4">
+            <div className="mb-4 flex gap-2">
+              <button
+                onClick={() => setShowCharacterModal(true)}
+                className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+              >
+                キャラクター管理
+              </button>
               <button
                 onClick={() => setShowConversationSettings(true)}
                 className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
@@ -589,6 +596,21 @@ const MultiCharacterChat: React.FC = () => {
       </div>
 
       {/* Modals */}
+      {showCharacterModal && (
+        <CharacterModal
+          characters={characterManager.characters}
+          setCharacters={characterManager.setAllCharacters}
+          characterGroups={[]}
+          setCharacterGroups={() => {}}
+          getDefaultCharacter={() => characterManager.createCharacter()}
+          exportCharacter={() => {}}
+          importCharacter={() => {}}
+          characterFileInputRef={useRef<HTMLInputElement>(null)}
+          emotions={EMOTIONS}
+          onClose={() => setShowCharacterModal(false)}
+        />
+      )}
+
       {showConversationSettings && currentConversation && (
         <ConversationSettings
           conversation={currentConversation}
