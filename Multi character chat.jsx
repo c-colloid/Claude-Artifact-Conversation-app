@@ -233,6 +233,178 @@ const IndexedDBWrapper = {
   },
 };
 
+/**
+ * ハイブリッドストレージラッパー
+ * プライマリ: window.storage (Published artifacts only)
+ * フォールバック1: IndexedDB
+ * フォールバック2: localStorage
+ */
+const HybridStorageWrapper = {
+  STORAGE_KEY_PREFIX: 'multi-chat:',
+
+  async setItem(key, value) {
+    const fullKey = this.STORAGE_KEY_PREFIX + key;
+    const jsonValue = JSON.stringify(value);
+
+    try {
+      if (window.storage && typeof window.storage.set === 'function') {
+        const result = await window.storage.set(fullKey, jsonValue, false);
+        if (result !== null) {
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('window.storage.set failed, falling back to IndexedDB:', err);
+    }
+
+    try {
+      await IndexedDBWrapper.setItem(fullKey, value);
+      return;
+    } catch (err) {
+      console.warn('IndexedDB.setItem failed, falling back to localStorage:', err);
+    }
+
+    try {
+      localStorage.setItem(fullKey, jsonValue);
+    } catch (err) {
+      console.error('All storage methods failed:', err);
+      throw err;
+    }
+  },
+
+  async getItem(key) {
+    const fullKey = this.STORAGE_KEY_PREFIX + key;
+
+    try {
+      if (window.storage && typeof window.storage.get === 'function') {
+        const result = await window.storage.get(fullKey, false);
+        if (result && result.value) {
+          return JSON.parse(result.value);
+        }
+      }
+    } catch (err) {
+      console.warn('window.storage.get failed, trying IndexedDB:', err);
+    }
+
+    try {
+      const data = await IndexedDBWrapper.getItem(fullKey);
+      if (data !== null) {
+        return data;
+      }
+    } catch (err) {
+      console.warn('IndexedDB.getItem failed, trying localStorage:', err);
+    }
+
+    try {
+      const dataString = localStorage.getItem(fullKey);
+      if (dataString) {
+        return JSON.parse(dataString);
+      }
+    } catch (err) {
+      console.error('All storage read methods failed:', err);
+    }
+
+    return null;
+  },
+
+  async removeItem(key) {
+    const fullKey = this.STORAGE_KEY_PREFIX + key;
+
+    const promises = [];
+
+    if (window.storage && typeof window.storage.delete === 'function') {
+      promises.push(
+        window.storage.delete(fullKey, false).catch(err => {
+          console.warn('window.storage.delete failed:', err);
+        })
+      );
+    }
+
+    promises.push(
+      IndexedDBWrapper.removeItem(fullKey).catch(err => {
+        console.warn('IndexedDB.removeItem failed:', err);
+      })
+    );
+
+    try {
+      localStorage.removeItem(fullKey);
+    } catch (err) {
+      console.warn('localStorage.removeItem failed:', err);
+    }
+
+    await Promise.allSettled(promises);
+  },
+
+  async clear() {
+    const promises = [];
+
+    if (window.storage && typeof window.storage.list === 'function') {
+      try {
+        const result = await window.storage.list(this.STORAGE_KEY_PREFIX, false);
+        if (result && result.keys) {
+          for (const key of result.keys) {
+            promises.push(
+              window.storage.delete(key, false).catch(err => {
+                console.warn('window.storage.delete failed:', err);
+              })
+            );
+          }
+        }
+      } catch (err) {
+        console.warn('window.storage.list failed:', err);
+      }
+    }
+
+    promises.push(
+      IndexedDBWrapper.clear().catch(err => {
+        console.warn('IndexedDB.clear failed:', err);
+      })
+    );
+
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith(this.STORAGE_KEY_PREFIX)) {
+        try {
+          localStorage.removeItem(key);
+        } catch (err) {
+          console.warn('localStorage.removeItem failed:', err);
+        }
+      }
+    });
+
+    await Promise.allSettled(promises);
+  },
+
+  async checkAvailability() {
+    const status = {
+      windowStorage: false,
+      indexedDB: false,
+      localStorage: false
+    };
+
+    try {
+      if (window.storage && typeof window.storage.set === 'function') {
+        await window.storage.set('__test__', 'test', false);
+        await window.storage.delete('__test__', false);
+        status.windowStorage = true;
+      }
+    } catch {}
+
+    try {
+      await IndexedDBWrapper.setItem('__test__', 'test');
+      await IndexedDBWrapper.removeItem('__test__');
+      status.indexedDB = true;
+    } catch {}
+
+    try {
+      localStorage.setItem('__test__', 'test');
+      localStorage.removeItem('__test__');
+      status.localStorage = true;
+    } catch {}
+
+    return status;
+  }
+};
+
 const MultiCharacterChat = () => {
   // ===== State管理 =====
 
@@ -258,10 +430,10 @@ const MultiCharacterChat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // --- モデル設定State ---
-  const [models, setModels] = useState([]);
-  const [selectedModel, setSelectedModel] = useState('claude-sonnet-4-5-20250929');
-  const [isLoadingModels, setIsLoadingModels] = useState(false);
+  // --- API設定State ---
+  const [maxTokens, setMaxTokens] = useState(4096);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [streamingEnabled, setStreamingEnabled] = useState(false);
 
   // --- Thinking機能State ---
   const [thinkingEnabled, setThinkingEnabled] = useState(false);
@@ -323,15 +495,8 @@ const MultiCharacterChat = () => {
   // --- ファイル設定 ---
   const MAX_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
 
-  // --- モデル定義 ---
-  const fallbackModels = [
-    { id: 'claude-opus-4-1-20250805', name: 'Opus 4.1', icon: '👑' },
-    { id: 'claude-opus-4-20250514', name: 'Opus 4', icon: '💎' },
-    { id: 'claude-sonnet-4-5-20250929', name: 'Sonnet 4.5', icon: '⭐' },
-    { id: 'claude-sonnet-4-20250514', name: 'Sonnet 4', icon: '✨' },
-    { id: 'claude-haiku-4-5-20251001', name: 'Haiku 4.5', icon: '⚡' },
-    { id: 'claude-haiku-4-20250514', name: 'Haiku 4', icon: '💨' }
-  ];
+  // --- API設定 ---
+  const CLAUDE_MODEL = 'claude-sonnet-4-20250514'; // Fixed model as per skill recommendation
 
   // --- 感情定義 ---
   const emotions = {
@@ -362,34 +527,6 @@ const MultiCharacterChat = () => {
   // --- ファイル名生成 ---
   const generateFileName = (prefix, name) => {
     return `${prefix}_${name}_${getTodayDate()}.json`;
-  };
-
-  // --- モデル表示ヘルパー ---
-  const getIconForModel = (displayName, modelId) => {
-    const name = (displayName || modelId).toLowerCase();
-    if (name.includes('opus')) return '👑';
-    if (name.includes('sonnet')) return '⭐';
-    if (name.includes('haiku')) return '⚡';
-    return '🤖';
-  };
-
-  const getShortName = (displayName, modelId) => {
-    if (displayName) {
-      return displayName.replace('Claude ', '');
-    }
-    if (modelId.includes('opus')) {
-      if (modelId.includes('4-1')) return 'Opus 4.1';
-      if (modelId.includes('4')) return 'Opus 4';
-    }
-    if (modelId.includes('sonnet')) {
-      if (modelId.includes('4-5')) return 'Sonnet 4.5';
-      if (modelId.includes('4')) return 'Sonnet 4';
-    }
-    if (modelId.includes('haiku')) {
-      if (modelId.includes('4-5')) return 'Haiku 4.5';
-      if (modelId.includes('4')) return 'Haiku 4';
-    }
-    return modelId;
   };
 
   // --- デフォルト値生成 ---
@@ -1357,8 +1494,8 @@ const MultiCharacterChat = () => {
       }
 
       const requestBody = {
-        model: selectedModel,
-        max_tokens: 4000,
+        model: CLAUDE_MODEL,
+        max_tokens: maxTokens,
         messages: finalMessages,
         system: systemPrompt
       };
@@ -1368,6 +1505,15 @@ const MultiCharacterChat = () => {
           type: 'enabled',
           budget_tokens: thinkingBudget
         };
+      }
+
+      if (webSearchEnabled) {
+        requestBody.tools = [
+          {
+            type: 'web_search_20250305',
+            name: 'web_search'
+          }
+        ];
       }
 
       const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -1735,54 +1881,6 @@ const MultiCharacterChat = () => {
     }, 100);
   }, [getAllMessages.length, visibleMessageCount]);
 
-  const fetchModels = async () => {
-    setIsLoadingModels(true);
-
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/models', {
-        method: 'GET',
-        headers: {
-          'anthropic-version': '2023-06-01',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`API Error: ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      if (data.data && Array.isArray(data.data)) {
-        const sortedModels = data.data.sort((a, b) => {
-          return b.created_at.localeCompare(a.created_at);
-        });
-
-        const formattedModels = sortedModels.map(model => ({
-          id: model.id,
-          name: getShortName(model.display_name, model.id),
-          icon: getIconForModel(model.display_name, model.id)
-        }));
-
-        setModels(formattedModels);
-
-        if (!formattedModels.find(m => m.id === selectedModel)) {
-          const defaultModel = formattedModels.find(m => m.id.includes('sonnet-4-5'))
-            ?? formattedModels[0];
-          if (defaultModel) {
-            setSelectedModel(defaultModel.id);
-          }
-        }
-      } else {
-        throw new Error('Invalid response format');
-      }
-    } catch (err) {
-      console.error('Failed to fetch models:', err);
-      setModels(fallbackModels);
-    } finally {
-      setIsLoadingModels(false);
-    }
-  };
-
   // --- データ操作 ---
   /**
    * データをストレージに保存
@@ -1799,24 +1897,17 @@ const MultiCharacterChat = () => {
         characterGroups,
         conversations,
         currentConversationId,
-        selectedModel,
+        maxTokens,
+        webSearchEnabled,
+        streamingEnabled,
         thinkingEnabled,
         thinkingBudget,
         usageStats,
         timestamp: getTimestamp(),
-        version: '1.0'
+        version: '2.0'
       };
 
-      // IndexedDBに保存（非同期、UIブロッキングなし）
-      await IndexedDBWrapper.setItem(STORAGE_KEY, saveData);
-
-      // フォールバック用にLocalStorageにも保存
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(saveData));
-      } catch (localStorageErr) {
-        // LocalStorageの容量制限エラーは無視（IndexedDBがメイン）
-        console.warn('LocalStorage save failed (quota exceeded), using IndexedDB only:', localStorageErr);
-      }
+      await HybridStorageWrapper.setItem(STORAGE_KEY, saveData);
 
       setLastSaved(new Date());
       setSaveStatus('saved');
@@ -1826,7 +1917,7 @@ const MultiCharacterChat = () => {
       setSaveStatus('error');
       setTimeout(() => setSaveStatus(''), 3000);
     }
-  }, [characters, characterGroups, conversations, currentConversationId, selectedModel, thinkingEnabled, thinkingBudget, usageStats, autoSaveEnabled, isInitialized]);
+  }, [characters, characterGroups, conversations, currentConversationId, maxTokens, webSearchEnabled, streamingEnabled, thinkingEnabled, thinkingBudget, usageStats, autoSaveEnabled, isInitialized]);
 
   /**
    * デバウンスされた自動保存関数
@@ -1846,33 +1937,7 @@ const MultiCharacterChat = () => {
    */
   const loadFromStorage = async () => {
     try {
-      let data = null;
-
-      // まずIndexedDBから読み込み
-      try {
-        data = await IndexedDBWrapper.getItem(STORAGE_KEY);
-      } catch (indexedDBErr) {
-        console.warn('IndexedDB load failed, trying LocalStorage:', indexedDBErr);
-      }
-
-      // IndexedDBにデータがない場合、LocalStorageから読み込んでマイグレーション
-      if (!data) {
-        const dataString = localStorage.getItem(STORAGE_KEY);
-        if (dataString) {
-          data = JSON.parse(dataString);
-
-          // LocalStorageからIndexedDBへマイグレーション
-          if (data) {
-            console.log('Migrating data from LocalStorage to IndexedDB...');
-            try {
-              await IndexedDBWrapper.setItem(STORAGE_KEY, data);
-              console.log('Migration complete');
-            } catch (migrationErr) {
-              console.error('Migration failed:', migrationErr);
-            }
-          }
-        }
-      }
+      const data = await HybridStorageWrapper.getItem(STORAGE_KEY);
 
       if (data) {
         if (data.characters && data.characters.length > 0) {
@@ -1926,8 +1991,14 @@ const MultiCharacterChat = () => {
           setCurrentConversationId(data.currentConversationId);
         }
 
-        if (data.selectedModel) {
-          setSelectedModel(data.selectedModel);
+        if (data.maxTokens) {
+          setMaxTokens(data.maxTokens);
+        }
+        if (data.webSearchEnabled !== undefined) {
+          setWebSearchEnabled(data.webSearchEnabled);
+        }
+        if (data.streamingEnabled !== undefined) {
+          setStreamingEnabled(data.streamingEnabled);
         }
         if (data.thinkingEnabled !== undefined) {
           setThinkingEnabled(data.thinkingEnabled);
@@ -1968,7 +2039,6 @@ const MultiCharacterChat = () => {
       }
 
       setIsInitialized(true);
-      fetchModels();
     };
 
     initializeData();
@@ -1983,7 +2053,7 @@ const MultiCharacterChat = () => {
   useEffect(() => {
     if (!isInitialized) return;
     debouncedSave();
-  }, [characters, conversations, currentConversationId, selectedModel, thinkingEnabled, thinkingBudget, usageStats, autoSaveEnabled, isInitialized, debouncedSave]);
+  }, [characters, conversations, currentConversationId, maxTokens, webSearchEnabled, streamingEnabled, thinkingEnabled, thinkingBudget, usageStats, autoSaveEnabled, isInitialized, debouncedSave]);
 
   // --- UI同期 ---
   /**
@@ -2165,56 +2235,84 @@ const MultiCharacterChat = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <label className="block text-sm font-medium text-gray-700">モデル</label>
-                <button
-                  onClick={fetchModels}
-                  disabled={isLoadingModels}
-                  className="text-indigo-600 hover:text-indigo-700 disabled:text-gray-400 p-1"
-                  title="モデル一覧を更新"
-                >
-                  <RefreshCw size={14} className={isLoadingModels ? 'animate-spin' : ''} />
-                </button>
-              </div>
-              <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                disabled={isLoading || isLoadingModels}
-              >
-                {models.length === 0 ? (
-                  <option value="">読込中...</option>
-                ) : (
-                  models.map(model => (
-                    <option key={model.id} value={model.id}>{model.icon} {model.name}</option>
-                  ))
-                )}
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Thinking</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="checkbox"
-                  checked={thinkingEnabled}
-                  onChange={(e) => setThinkingEnabled(e.target.checked)}
-                  className="w-5 h-5"
-                  disabled={isLoading}
-                />
-                {thinkingEnabled && (
+          <div className="grid grid-cols-1 gap-3">
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">🤖 API設定</h4>
+              <div className="space-y-2">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">使用モデル</label>
+                  <div className="px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm text-gray-700">
+                    ⭐ Claude Sonnet 4 (固定)
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Max Tokens</label>
                   <input
                     type="number"
-                    value={thinkingBudget}
-                    onChange={(e) => setThinkingBudget(Number(e.target.value))}
-                    className="flex-1 px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                    value={maxTokens}
+                    onChange={(e) => setMaxTokens(Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
                     min="1000"
-                    max="10000"
-                    step="500"
+                    max="8192"
+                    step="256"
                     disabled={isLoading}
                   />
-                )}
+                  <p className="text-xs text-gray-500 mt-1">推奨: 4096 (最大: 8192)</p>
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={webSearchEnabled}
+                      onChange={(e) => setWebSearchEnabled(e.target.checked)}
+                      className="w-4 h-4"
+                      disabled={isLoading}
+                    />
+                    <span className="text-sm text-gray-700">🔍 Web Search を有効化</span>
+                  </label>
+                  <p className="text-xs text-gray-500 ml-6">リアルタイム情報を検索</p>
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={streamingEnabled}
+                      onChange={(e) => setStreamingEnabled(e.target.checked)}
+                      className="w-4 h-4"
+                      disabled={isLoading}
+                    />
+                    <span className="text-sm text-gray-700">⚡ ストリーミング応答</span>
+                  </label>
+                  <p className="text-xs text-gray-500 ml-6">リアルタイムで応答を表示</p>
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={thinkingEnabled}
+                      onChange={(e) => setThinkingEnabled(e.target.checked)}
+                      className="w-4 h-4"
+                      disabled={isLoading}
+                    />
+                    <span className="text-sm text-gray-700">💭 Extended Thinking</span>
+                  </label>
+                  {thinkingEnabled && (
+                    <input
+                      type="number"
+                      value={thinkingBudget}
+                      onChange={(e) => setThinkingBudget(Number(e.target.value))}
+                      className="w-full mt-2 px-3 py-1.5 border border-gray-300 rounded-lg text-sm"
+                      min="1000"
+                      max="10000"
+                      step="500"
+                      disabled={isLoading}
+                    />
+                  )}
+                </div>
               </div>
             </div>
           </div>
@@ -5540,7 +5638,7 @@ ${simpleDescription}
       )}
     </div>
   );
-});
+};
 
 // Confirmation Dialog Component
 // Emoji Picker Component
