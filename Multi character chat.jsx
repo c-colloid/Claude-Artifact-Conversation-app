@@ -5638,7 +5638,7 @@ ${simpleDescription}
       )}
     </div>
   );
-};
+});
 
 // Confirmation Dialog Component
 // Emoji Picker Component
