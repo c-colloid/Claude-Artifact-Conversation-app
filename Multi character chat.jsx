@@ -5284,8 +5284,8 @@ ${simpleDescription}
 
       {/* AIアシストキャラクター作成モーダル */}
       {showAutoSetupModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl my-8 flex flex-col" style={{ maxHeight: 'calc(100vh - 4rem)' }}>
             <div className="sticky top-0 bg-white border-b px-6 py-4 flex items-center justify-between">
               <h2 className="text-xl font-bold flex items-center gap-2">
                 <User size={24} className="text-purple-600" />
@@ -5333,7 +5333,7 @@ ${simpleDescription}
               </button>
             </div>
 
-            <div className="p-6 space-y-4 overflow-y-auto flex-1">
+            <div className="p-6 space-y-4 overflow-y-auto flex-1" style={{ minHeight: 0 }}>
               {autoSetupMode === 'template' ? (
                 // テンプレート生成モード
                 !generatedTemplate ? (
